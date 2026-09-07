@@ -1,0 +1,19 @@
+@startuml Diagrama4_ReportesAnalisis
+title Diagrama 4 — Generación de reportes y análisis (RF12, RF14, RF15)
+
+actor Usuario
+participant "Módulo Python\n(alto nivel)" as PY
+database "SQLite" as DB
+
+Usuario -> PY : solicitar generación de reporte
+activate PY
+PY -> DB : consultar eventos almacenados
+activate DB
+DB --> PY : registros solicitados
+deactivate DB
+PY -> PY : calcular tiempo de actividad de teclado y mouse (RF12)
+PY -> PY : analizar patrones de uso del teclado y mouse (RF15)
+PY -> PY : generar reporte en formato CSV (RF14)
+PY --> Usuario : reporte generado
+deactivate PY
+@enduml
