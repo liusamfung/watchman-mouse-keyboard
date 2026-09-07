@@ -83,6 +83,51 @@ deactivate PY
 
 ## Diagrama 3 — Procesamiento y almacenamiento (RF8, RF9, RF13)
 
+```plantuml
+@startuml Diagrama3_ProcesamientoAlmacenamiento
+title Diagrama 3 — Procesamiento y almacenamiento (RF8, RF9, RF13)
+
+participant "Módulo Python\n(alto nivel)" as PY
+database "SQLite" as DB
+
+loop mientras la captura esté activa
+    PY -> PY : recibir evento JSON desde stdout (RF3)
+    alt evento válido
+        PY -> PY : asignar identificador único al evento (RF8)
+        PY -> DB : almacenar evento (RF13)
+        activate DB
+        DB --> PY : ok
+        deactivate DB
+    else evento inválido
+        PY -> DB : registrar evento inválido o erróneo (RF9)
+    end
+end
+@enduml
+```
+
 ---
 
 ## Diagrama 4 — Generación de reportes y análisis (RF12, RF14, RF15)
+
+```plantuml
+@startuml Diagrama4_ReportesAnalisis
+title Diagrama 4 — Generación de reportes y análisis (RF12, RF14, RF15)
+
+actor Usuario
+participant "Módulo Python\n(alto nivel)" as PY
+database "SQLite" as DB
+
+Usuario -> PY : solicitar generación de reporte
+activate PY
+PY -> DB : consultar eventos almacenados
+activate DB
+DB --> PY : registros solicitados
+deactivate DB
+PY -> PY : calcular tiempo de actividad de teclado y mouse (RF12)
+PY -> PY : analizar patrones de uso del teclado y mouse (RF15)
+PY -> PY : generar reporte en formato CSV (RF14)
+PY --> Usuario : reporte generado
+deactivate PY
+@enduml
+
+```
