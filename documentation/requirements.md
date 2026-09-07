@@ -1,0 +1,55 @@
+# Diagramas de Actividades — Caso 4
+
+```plantuml
+@startuml
+Alice -> Bob: hello
+Bob --> Alice: hi
+@enduml
+```
+
+---
+
+## Diagrama 1 — Captura de eventos (RF1, RF4, RF5, RF6, RF7, RF11)
+
+```plantuml
+@startuml Diagrama1_CapturaEventos
+title Diagrama 1 — Captura de eventos (RF1, RF4, RF5, RF6, RF7, RF11)
+
+actor "Teclado / Mouse" as HW
+participant "Módulo C++\n(bajo nivel)" as CPP
+boundary "stdout" as OUT
+
+loop mientras la captura esté activa
+    HW -> CPP : evento de hardware
+    activate CPP
+    CPP -> CPP : identificar tipo de evento (RF1)
+    alt evento de teclado
+        CPP -> CPP : capturar pulsación o liberación de tecla (RF5)
+    else evento de mouse
+        CPP -> CPP : capturar movimiento, clic o scroll (RF6)
+        CPP -> CPP : obtener coordenadas X/Y del cursor (RF7)
+    end
+    CPP -> CPP : serializar el evento a formato JSON (RF4)
+    CPP -> OUT : escribir evento en stdout (RF4)
+    deactivate CPP
+end
+
+note over CPP
+  El bucle se repite hasta que el módulo
+  Python solicita detener la captura (RF11)
+end note
+@enduml
+
+```
+
+---
+
+## Diagrama 2 — Comunicación y control (RF2, RF3, RF9, RF10, RF11)
+
+---
+
+## Diagrama 3 — Procesamiento y almacenamiento (RF8, RF9, RF13)
+
+---
+
+## Diagrama 4 — Generación de reportes y análisis (RF12, RF14, RF15)
