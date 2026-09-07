@@ -46,6 +46,39 @@ end note
 
 ## Diagrama 2 — Comunicación y control (RF2, RF3, RF9, RF10, RF11)
 
+```plantuml
+@startuml Diagrama2_ComunicacionControl
+title Diagrama 2 — Comunicación y control (RF2, RF3, RF9, RF10, RF11)
+
+actor Usuario
+participant "Módulo Python\n(alto nivel)" as PY
+
+Usuario -> PY : solicitar inicio de captura (RF11)
+activate PY
+PY -> CPP ** : ejecutar binario C++ como subproceso (RF2)
+activate CPP
+
+par lectura continua del flujo
+    loop hasta que se detenga la captura
+        CPP -> PY : evento (JSON por stdout)
+        PY -> PY : leer flujo stdout en tiempo real (RF3)
+    end
+else vigilancia de caída del proceso
+    loop hasta que se detenga la captura
+        PY -> PY : ¿el proceso C++ finalizó inesperadamente? (RF10)
+        opt sí, finalizó
+            PY -> PY : registrar error de comunicación (RF9)
+        end
+    end
+end
+
+Usuario -> PY : solicitar detener captura (RF11)
+PY -> CPP !! : detener y finalizar el subproceso C++ (RF11)
+deactivate PY
+@enduml
+
+```
+
 ---
 
 ## Diagrama 3 — Procesamiento y almacenamiento (RF8, RF9, RF13)
