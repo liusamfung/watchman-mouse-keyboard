@@ -1,0 +1,19 @@
+@startuml C4_Nivel1_Contexto
+!include <C4/C4_Context>
+LAYOUT_WITH_LEGEND()
+title Diagrama de contexto (C4 · Nivel 1): Capturador y Auditor de Eventos de Entrada
+
+Person(trabajador, "Trabajador", "Usa teclado y mouse con normalidad. No ve ni interactúa con el sistema.")
+Person(soporte, "Soporte TI", "Consulta el estado de los periféricos, genera reportes y configura límites y alertas.")
+
+System(sistema, "Capturador y Auditor de Eventos", "Registra el uso del teclado y mouse, cuenta el desgaste de cada periférico y avisa a soporte antes de que llegue al límite del fabricante.")
+
+System_Ext(windows, "Sistema operativo Windows", "Entrega los eventos de entrada, inicia el sistema al iniciar sesión y guarda las credenciales de forma segura.")
+System_Ext(correo, "Servidor de correo", "Entrega los correos de alerta al equipo de soporte.")
+
+Rel(trabajador, windows, "Usa teclado y mouse")
+Rel(windows, sistema, "Envía los eventos de entrada e inicia el sistema al iniciar sesión")
+Rel(soporte, sistema, "Consulta, genera reportes y configura")
+Rel(sistema, correo, "Envía las alertas de desgaste", "SMTP")
+Rel(correo, soporte, "Entrega la alerta", "Correo electrónico")
+@enduml

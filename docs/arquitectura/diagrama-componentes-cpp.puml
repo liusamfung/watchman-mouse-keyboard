@@ -1,0 +1,24 @@
+@startuml C4_Nivel3_Capturador
+!include <C4/C4_Component>
+LAYOUT_WITH_LEGEND()
+title Diagrama de componentes (C4 · Nivel 3): Capturador de eventos (C++)
+
+System_Ext(windows, "Sistema operativo Windows", "Entrega los eventos de entrada.")
+Container(servicio, "Servicio de monitoreo", "Python 3", "Lee la salida del capturador.")
+
+Container_Boundary(capturador, "Capturador de eventos (C++)") {
+    Component(ventana, "Ventana oculta de mensajes", "Win32", "Recibe los mensajes de entrada del sistema operativo sin mostrar nada al trabajador (RNF11).")
+    Component(rawinput, "Receptor Raw Input", "RegisterRawInputDevices", "Se registra para recibir teclado y mouse y obtiene cada evento junto con el dispositivo que lo generó (RF5, RF6).")
+    Component(identificador, "Identificador de dispositivo", "GetRawInputDeviceInfo", "Obtiene el tipo, el VID/PID y el nombre del producto (RF1, RF17).")
+    Component(serializador, "Serializador JSON", "C++", "Arma el JSON de cada evento: tipo, hora, dispositivo y coordenadas X/Y en los movimientos. El código de tecla viaja solo para el contador (RF4, RF7, RNF4).")
+    Component(salida, "Escritor de stdout", "C++", "Escribe una línea JSON por evento y vacía el búfer en cada línea para no generar retrasos (RNF1).")
+}
+
+Rel(windows, ventana, "Envía los mensajes de entrada", "WM_INPUT")
+Rel(ventana, rawinput, "Pasa cada mensaje")
+Rel(rawinput, identificador, "Pide los datos del dispositivo")
+Rel(rawinput, serializador, "Entrega el evento")
+Rel(identificador, serializador, "Entrega tipo y modelo")
+Rel(serializador, salida, "Entrega el JSON")
+Rel(salida, servicio, "Una línea JSON por evento", "stdout")
+@enduml

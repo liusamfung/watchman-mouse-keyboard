@@ -1,0 +1,33 @@
+@startuml C4_Nivel3_Interfaz
+!include <C4/C4_Component>
+LAYOUT_WITH_LEGEND()
+title Diagrama de componentes (C4 · Nivel 3): Interfaz de escritorio (Tkinter)
+
+Person(soporte, "Soporte TI", "Usa la interfaz.")
+ContainerDb(bd, "Base de datos", "SQLite", "eventos.db")
+Container(csv, "Reportes", "Archivos CSV", "Reportes exportados.")
+System_Ext(credenciales, "Administrador de credenciales de Windows", "Guarda la contraseña del correo.")
+
+Container_Boundary(ui, "Interfaz de escritorio (Python · Tkinter)") {
+    Component(pantallas, "Pantallas P01 a P08", "tkinter · ttk", "Panel principal, periféricos, detalle, sesiones, análisis, reportes, alertas y configuración (RF23).")
+    Component(ctrl, "Controlador de captura", "Python", "Deja en la base de datos la orden de iniciar o detener la captura (RF11).")
+    Component(analisis, "Analizador de patrones", "Python", "Calcula la distribución por hora y día y los patrones de uso para el mapa de calor (RF15, RF22).")
+    Component(reportes, "Generador de reportes", "csv", "Exporta eventos, totales diarios, contadores y alertas a CSV (RF14).")
+    Component(config, "Gestor de configuración", "Python · keyring", "Edita límites por modelo, umbrales y destinatarios, y guarda la contraseña fuera del código (RF18, RNF9, RNF10).")
+    Component(repo, "Repositorio SQLite", "sqlite3", "Acceso de lectura y escritura a la base de datos.")
+}
+
+Rel(soporte, pantallas, "Usa")
+Rel(pantallas, ctrl, "Inicia o detiene la captura")
+Rel(pantallas, analisis, "Pide el mapa de calor")
+Rel(pantallas, reportes, "Pide un reporte")
+Rel(pantallas, config, "Guarda cambios")
+Rel(pantallas, repo, "Consulta periféricos, sesiones y alertas")
+Rel(ctrl, repo, "Escribe la orden")
+Rel(analisis, repo, "Lee eventos y contadores")
+Rel(reportes, repo, "Lee los datos")
+Rel(reportes, csv, "Escribe el archivo", "csv")
+Rel(config, repo, "Guarda límites, umbrales y destinatarios")
+Rel(config, credenciales, "Guarda la contraseña", "keyring")
+Rel(repo, bd, "Lee y escribe", "sqlite3")
+@enduml
