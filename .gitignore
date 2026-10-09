@@ -1,0 +1,46 @@
+# Bases de datos locales (cada equipo tiene la suya)
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Reportes generados
+reportes/
+*.csv
+
+# Credenciales y configuración local (NUNCA subir)
+.env
+*.env
+secrets*
+credenciales*
+config.local.*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# C++ / Visual Studio / CMake
+build/
+out/
+x64/
+Debug/
+Release/
+.vs/
+*.obj
+*.o
+*.exe
+*.pdb
+*.ilk
+CMakeCache.txt
+CMakeFiles/
+
+# Editor y sistema
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

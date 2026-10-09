@@ -1,0 +1,45 @@
+@startuml C4_Despliegue
+!include <C4/C4_Deployment>
+LAYOUT_WITH_LEGEND()
+title Diagrama de despliegue (C4): sistema instalado en cada equipo
+
+Person(soporte, "Soporte TI", "Usa la interfaz en el equipo del trabajador (en sitio o por escritorio remoto) y recibe las alertas por correo.")
+
+Deployment_Node(pc, "Equipo del trabajador (uno por cada equipo)", "PC con Windows", "Cada equipo tiene su propia instalación y su propia base de datos.") {
+
+    System_Ext(tareas, "Programador de tareas de Windows", "Tarea que se ejecuta al iniciar el equipo.")
+    System_Ext(rawinput, "Raw Input de Windows", "Entrega los eventos de teclado y mouse.")
+    System_Ext(credenciales, "Administrador de credenciales de Windows", "Guarda la contraseña del correo.")
+
+    Deployment_Node(proc_servicio, "Proceso en segundo plano", "pythonw.exe · sin ventana", "Se inicia solo con Windows.") {
+        Container(servicio, "Servicio de monitoreo", "Python 3", "Valida y guarda los eventos, cuenta el desgaste y envía las alertas.")
+    }
+
+    Deployment_Node(proc_captura, "Proceso hijo", "captura.exe", "Lo lanza y lo vigila el servicio.") {
+        Container(capturador, "Capturador de eventos", "C++ · Raw Input", "Envía cada evento en JSON por stdout.")
+    }
+
+    Deployment_Node(proc_ui, "Proceso de la interfaz", "python.exe · Tkinter", "Lo abre soporte TI cuando lo necesita.") {
+        Container(ui, "Interfaz de escritorio", "Python · Tkinter", "Pantallas P01 a P08.")
+    }
+
+    Deployment_Node(archivos, "Sistema de archivos local", "NTFS", "Sin servidor de base de datos externo (RNF3).") {
+        ContainerDb(bd, "Base de datos", "SQLite (eventos.db)", "Eventos, sesiones, periféricos, contadores, alertas y configuración.")
+        Container(csv, "Reportes", "Archivos CSV", "Reportes exportados.")
+    }
+}
+
+System_Ext(correo, "Servidor de correo", "Entrega los correos de alerta al equipo de soporte.")
+
+Rel(tareas, servicio, "Lo inicia al iniciar sesión")
+Rel(servicio, capturador, "Lo ejecuta y lee su salida", "subprocess · stdout JSON")
+Rel(rawinput, capturador, "Entrega los eventos", "Raw Input API")
+Rel(servicio, bd, "Guarda eventos, contadores y alertas", "sqlite3 · modo WAL")
+Rel(ui, bd, "Lee los datos y guarda la configuración", "sqlite3 · modo WAL")
+Rel(ui, csv, "Escribe los reportes", "csv")
+Rel(servicio, credenciales, "Lee la contraseña del correo", "keyring")
+Rel(ui, credenciales, "Guarda la contraseña del correo", "keyring")
+Rel(servicio, correo, "Envía las alertas", "SMTP con TLS · puerto 587")
+Rel(correo, soporte, "Entrega la alerta", "Correo electrónico")
+Rel(soporte, ui, "Usa en el equipo")
+@enduml

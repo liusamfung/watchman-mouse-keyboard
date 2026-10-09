@@ -1,0 +1,31 @@
+@startuml C4_Nivel2_Contenedores
+!include <C4/C4_Container>
+LAYOUT_WITH_LEGEND()
+title Diagrama de contenedores (C4 · Nivel 2): sistema instalado en cada equipo
+
+Person(soporte, "Soporte TI", "Usa la interfaz y recibe las alertas por correo.")
+
+System_Boundary(sis, "Capturador y Auditor de Eventos (un equipo)") {
+    Container(capturador, "Capturador de eventos", "C++ · Windows Raw Input", "Detecta teclado y mouse, identifica el modelo del periférico y envía cada evento en JSON por stdout.")
+    Container(servicio, "Servicio de monitoreo", "Python 3", "Corre en segundo plano, sin ventana. Lanza el capturador, valida y guarda los eventos, cuenta el desgaste y envía las alertas.")
+    Container(ui, "Interfaz de escritorio", "Python · Tkinter", "Pantallas P01 a P08 para soporte TI: estado, periféricos, sesiones, análisis, reportes, alertas y configuración.")
+    ContainerDb(bd, "Base de datos", "SQLite (eventos.db)", "Eventos, sesiones, periféricos, contadores, alertas, incidentes y configuración.")
+    Container(csv, "Reportes", "Archivos CSV", "Eventos, totales diarios, contadores y alertas exportados.")
+}
+
+System_Ext(windows, "Sistema operativo Windows", "Programador de tareas y Raw Input.")
+System_Ext(credenciales, "Administrador de credenciales de Windows", "Guarda la contraseña del correo fuera del código y del repositorio.")
+System_Ext(correo, "Servidor de correo", "Entrega los correos de alerta.")
+
+Rel(soporte, ui, "Usa")
+Rel(windows, servicio, "Lo inicia al iniciar sesión", "Programador de tareas")
+Rel(windows, capturador, "Entrega los eventos de teclado y mouse", "Raw Input API")
+Rel(servicio, capturador, "Lo ejecuta, lee su salida y lo relanza si se cae", "subprocess · JSON por stdout")
+Rel(servicio, bd, "Guarda eventos, contadores, alertas e incidentes. Lee la orden de iniciar o detener", "sqlite3")
+Rel(ui, bd, "Lee los datos. Guarda la configuración y la orden de iniciar o detener", "sqlite3")
+Rel(ui, csv, "Genera los reportes", "csv")
+Rel(servicio, credenciales, "Lee la contraseña del correo", "keyring")
+Rel(ui, credenciales, "Guarda o cambia la contraseña del correo", "keyring")
+Rel(servicio, correo, "Envía las alertas", "SMTP")
+Rel(correo, soporte, "Entrega la alerta", "Correo electrónico")
+@enduml

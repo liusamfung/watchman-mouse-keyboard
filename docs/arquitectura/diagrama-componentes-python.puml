@@ -1,0 +1,37 @@
+@startuml C4_Nivel3_Servicio
+!include <C4/C4_Component>
+LAYOUT_WITH_LEGEND()
+title Diagrama de componentes (C4 · Nivel 3): Servicio de monitoreo (Python)
+
+Container(capturador, "Capturador de eventos", "C++", "Envía los eventos en JSON por stdout.")
+ContainerDb(bd, "Base de datos", "SQLite", "eventos.db")
+System_Ext(correo, "Servidor de correo", "Entrega las alertas.")
+System_Ext(credenciales, "Administrador de credenciales de Windows", "Guarda la contraseña del correo.")
+
+Container_Boundary(servicio, "Servicio de monitoreo (Python)") {
+    Component(control, "Controlador de captura", "Python", "Lee la orden de iniciar o detener que deja la interfaz y la aplica (RF11).")
+    Component(gestor, "Gestor del subproceso", "subprocess", "Lanza el capturador, lee su stdout en tiempo real, detecta si se cae y lo relanza (RF2, RF3, RF10, RF21).")
+    Component(validador, "Validador de eventos", "json", "Descarta y registra los eventos inválidos o mal formados (RF9).")
+    Component(sesion, "Control de sesión", "Python", "Abre y cierra la sesión del equipo y calcula el tiempo de actividad (RF12).")
+    Component(contador, "Contador de desgaste", "Python", "Acumula pulsaciones por tecla, clics y scroll por periférico, sin guardar el orden (RF16, RNF4).")
+    Component(evaluador, "Evaluador de umbrales", "Python", "Compara cada contador con el límite del modelo y crea la alerta al 90 % y al 100 % (RF17, RF19).")
+    Component(notificador, "Notificador de alertas", "smtplib · keyring", "Envía el correo, reintenta al minuto, a los 5 minutos y cada 15, y deja pendiente lo que no pudo enviar (RF20).")
+    Component(repo, "Repositorio SQLite", "sqlite3", "Único punto de acceso a la base de datos (RF8, RF13).")
+}
+
+Rel(control, gestor, "Inicia o detiene la captura")
+Rel(control, repo, "Lee la orden y la configuración")
+Rel(gestor, capturador, "Ejecuta y lee", "stdout JSON")
+Rel(gestor, validador, "Entrega cada línea recibida")
+Rel(gestor, sesion, "Avisa el inicio y el fin de la captura")
+Rel(validador, repo, "Guarda eventos válidos y errores")
+Rel(validador, contador, "Pasa los eventos válidos")
+Rel(sesion, repo, "Guarda las sesiones")
+Rel(contador, repo, "Guarda los contadores (cada minuto)")
+Rel(contador, evaluador, "Avisa cuando cambia un contador")
+Rel(evaluador, repo, "Lee los límites y guarda las alertas pendientes")
+Rel(notificador, repo, "Lee las alertas pendientes y marca las enviadas")
+Rel(notificador, correo, "Envía la alerta", "SMTP")
+Rel(notificador, credenciales, "Lee la contraseña", "keyring")
+Rel(repo, bd, "Lee y escribe", "sqlite3")
+@enduml
