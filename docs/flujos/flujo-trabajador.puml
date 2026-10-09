@@ -1,0 +1,47 @@
+@startuml
+title Caso 4 · Flujo del Trabajador (sin pantallas)
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam ArrowColor #2F7F76
+skinparam activity {
+  BackgroundColor #E8F3F1
+  BorderColor #2F7F76
+  DiamondBackgroundColor #E8F3F1
+  DiamondBorderColor #2F7F76
+}
+skinparam note {
+  BackgroundColor #FFF3C4
+  BorderColor #E0C060
+}
+
+start
+:Enciende el equipo;
+:El sistema inicia solo
+(inicio automático, RF21);
+note right
+  El trabajador no ve ventanas
+  ni íconos (RNF11)
+end note
+:Trabaja con normalidad
+(la captura corre en segundo plano);
+
+repeat
+  if (¿El proceso de captura se cerró?) then (sí)
+    :El sistema lo relanza solo
+    (RF10 y RF21);
+  else (no)
+  endif
+  if (¿Un periférico llegó al 90 % o 100 % de su límite?) then (sí)
+    :Se genera la alerta y se envía
+    por correo a soporte TI (RF19 y RF20);
+    note right
+      Si no hay internet, queda pendiente
+      y se envía en la siguiente sesión
+    end note
+  else (no)
+  endif
+repeat while (¿Sigue con el equipo encendido?) is (sí) not (no)
+
+:Apaga el equipo;
+stop
+@enduml

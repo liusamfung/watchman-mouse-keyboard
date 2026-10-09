@@ -1,0 +1,87 @@
+@startuml
+title Caso 4 · Flujo de Soporte TI
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam ArrowColor #2F7F76
+skinparam activity {
+  BackgroundColor #E8F3F1
+  BorderColor #2F7F76
+  DiamondBackgroundColor #E8F3F1
+  DiamondBorderColor #2F7F76
+}
+skinparam note {
+  BackgroundColor #FFF3C4
+  BorderColor #E0C060
+}
+
+start
+:P1 Panel principal
+(estado de captura, periféricos, alertas pendientes);
+
+repeat
+  switch (¿Qué quiere hacer soporte TI?)
+  case (Captura)
+    if (¿Captura activa?) then (sí)
+      :Detener captura
+      (confirmar);
+      note right
+        Los contadores se guardan
+        antes de detener (RF11)
+      end note
+    else (no)
+      :Iniciar captura;
+    endif
+  case (Periféricos)
+    :P2 Lista de periféricos
+    (modelo, etiqueta, equipo, % de vida útil);
+    :P3 Detalle del periférico
+    (contadores por tecla, clics y scroll);
+    if (¿Marcado "por confirmar"?) then (sí)
+      :Confirmar etiqueta y equipo;
+      note right
+        Se detectó un dispositivo
+        nuevo en el equipo (RF18)
+      end note
+    else (no)
+    endif
+  case (Sesiones)
+    :P4 Sesiones
+    (inicio, fin, tiempo de actividad, total diario);
+  case (Análisis)
+    :P5 Análisis de uso
+    (filtros: fechas y dispositivo);
+    :Ver mapa de calor por hora y día;
+  case (Reportes)
+    :P6 Reportes;
+    :Elegir rango y tipo de reporte;
+    if (¿Hay datos en el rango?) then (sí)
+      :Generar CSV;
+      :Reporte guardado
+      (muestra la ruta del archivo);
+    else (no)
+      :Mensaje: "No hay datos
+      en el rango elegido";
+    endif
+  case (Alertas)
+    :P7 Alertas e incidentes
+    (enviadas, pendientes, errores, caídas de C++);
+    :Ver detalle de la alerta
+    (intentos y estado);
+  case (Configuración)
+    :P8 Configuración
+    (límites por modelo, umbrales, destinatarios);
+    :Editar y guardar cambios;
+    note right
+      Las credenciales del correo
+      no se muestran (RNF10)
+    end note
+  endswitch
+repeat while (¿Sigue usando la app?) is (sí) not (no)
+
+:Cerrar ventana;
+note right
+  La captura sigue en
+  segundo plano (RNF11)
+end note
+stop
+@enduml
