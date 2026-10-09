@@ -1,0 +1,223 @@
+Project caso4_capturador_eventos {
+  database_type: 'SQLite'
+  Note: 'Base de datos local de cada equipo (eventos.db). Las fechas se guardan como texto ISO 8601.'
+}
+
+// ---------- Tipos de valores permitidos ----------
+Enum tipo_dispositivo {
+  teclado
+  mouse
+}
+
+Enum tipo_conteo {
+  pulsacion_tecla [note: 'Pulsaciones por tecla']
+  clic_boton [note: 'Clics por botón del mouse']
+  scroll_paso [note: 'Pasos de la rueda del mouse']
+}
+
+Enum tipo_evento {
+  tecla_presionada
+  tecla_liberada
+  mouse_movimiento
+  clic_izquierdo
+  clic_derecho
+  scroll
+}
+
+Enum estado_asignacion {
+  confirmada
+  por_confirmar
+}
+
+Enum tipo_cierre {
+  normal
+  inesperado
+}
+
+Enum estado_alerta {
+  pendiente
+  enviada
+}
+
+Enum tipo_incidente {
+  error_comunicacion
+  evento_invalido
+  caida_proceso
+  apagado_inesperado
+  error_envio
+}
+
+// ---------- Inventario ----------
+Table equipo {
+  id integer [pk, increment]
+  nombre varchar(60) [not null, unique, note: 'Nombre del equipo, por ejemplo PC-CONTAB-014']
+}
+
+Table modelo_periferico {
+  id integer [pk, increment]
+  fabricante varchar(60) [not null, note: 'Por ejemplo Logitech']
+  nombre varchar(80) [not null, note: 'Por ejemplo K120']
+  tipo tipo_dispositivo [not null]
+  vid varchar(4) [not null, note: 'Identificador del fabricante en hexadecimal, por ejemplo 046D']
+  pid varchar(4) [not null, note: 'Identificador del producto en hexadecimal, por ejemplo C31C']
+
+  indexes {
+    (vid, pid) [unique]
+  }
+
+  Note: 'Tabla de referencia de modelos conocidos (RF17).'
+}
+
+Table limite_modelo {
+  id integer [pk, increment]
+  id_modelo integer [not null]
+  tipo_conteo tipo_conteo [not null]
+  limite integer [not null, note: 'Máximo garantizado por el fabricante, por tecla, botón o paso de scroll']
+
+  indexes {
+    (id_modelo, tipo_conteo) [unique]
+  }
+
+  Note: 'Límite de vida útil de cada modelo, uno por tipo de conteo (RF17, RNF9).'
+}
+
+Table periferico {
+  id integer [pk, increment]
+  id_modelo integer [not null]
+  id_equipo integer [not null]
+  etiqueta varchar(20) [unique, note: 'Etiqueta de inventario, por ejemplo TEC-0042. Vacía hasta que soporte la confirme']
+  estado_asignacion estado_asignacion [not null, default: 'confirmada']
+  activo boolean [not null, default: true, note: 'false cuando el periférico fue retirado']
+  fecha_asignacion datetime [not null]
+  fecha_retiro datetime [note: 'Vacío mientras esté en uso']
+
+  Note: 'Cada teclado o mouse físico asociado a un equipo (RF18).'
+}
+
+// ---------- Registro de uso ----------
+Table sesion {
+  id integer [pk, increment]
+  id_equipo integer [not null]
+  inicio datetime [not null]
+  fin datetime [note: 'Vacío mientras la sesión está en curso']
+  tipo_cierre tipo_cierre [note: 'Vacío mientras la sesión está en curso']
+  seg_actividad_teclado integer [not null, default: 0, note: 'Segundos de actividad del teclado']
+  seg_actividad_mouse integer [not null, default: 0, note: 'Segundos de actividad del mouse']
+
+  indexes {
+    inicio
+  }
+
+  Note: 'Una sesión va desde que el servicio inicia hasta que el equipo se apaga (RF12).'
+}
+
+Table evento {
+  id integer [pk, increment, note: 'Identificador único del evento (RF8)']
+  id_sesion integer [not null]
+  id_periferico integer [not null]
+  tipo_evento tipo_evento [not null]
+  fecha_hora datetime [not null]
+  x integer [note: 'Coordenada X, solo en movimientos del mouse (RF7)']
+  y integer [note: 'Coordenada Y, solo en movimientos del mouse (RF7)']
+
+  indexes {
+    id_sesion
+    (id_periferico, fecha_hora)
+    fecha_hora
+  }
+
+  Note: 'No guarda qué tecla se pulsó, solo el tipo de evento y la hora (RNF4).'
+}
+
+// ---------- Desgaste y alertas ----------
+Table contador_diario {
+  id_periferico integer [not null]
+  fecha date [not null]
+  tipo_conteo tipo_conteo [not null]
+  elemento varchar(30) [not null, note: 'Tecla (E, Espacio...), botón (izquierdo, derecho) o rueda']
+  cantidad integer [not null, default: 0]
+
+  indexes {
+    (id_periferico, fecha, tipo_conteo, elemento) [pk]
+  }
+
+  Note: 'Solo contadores agregados por día, sin orden ni secuencia (RF16, RNF4). El total acumulado es la suma de los días.'
+}
+
+Table alerta {
+  id integer [pk, increment]
+  id_periferico integer [not null]
+  umbral integer [not null, note: '90 o 100, porcentaje del límite']
+  estado estado_alerta [not null, default: 'pendiente']
+  detalle text [note: 'Elementos que superaron el umbral, por ejemplo: E 91 %']
+  fecha_creacion datetime [not null]
+  intentos integer [not null, default: 0]
+  fecha_ultimo_intento datetime
+  proximo_reintento datetime
+  ultimo_error varchar(200)
+  fecha_envio datetime [note: 'Vacío mientras esté pendiente']
+
+  indexes {
+    (id_periferico, umbral) [unique]
+    estado
+  }
+
+  Note: 'Una alerta por periférico y umbral: así no se duplican aunque el programa se reinicie (RF19, RF20, RNF12).'
+}
+
+Table incidente {
+  id integer [pk, increment]
+  id_sesion integer
+  tipo tipo_incidente [not null]
+  fecha_hora datetime [not null]
+  detalle varchar(250)
+  accion varchar(120) [note: 'Por ejemplo: relanzado automáticamente']
+
+  indexes {
+    fecha_hora
+  }
+
+  Note: 'Errores, eventos inválidos, caídas del capturador y apagados inesperados (RF9, RF10).'
+}
+
+// ---------- Configuración ----------
+Table configuracion {
+  clave varchar(50) [pk]
+  valor varchar(250) [not null]
+
+  Note: 'Pares clave y valor: umbrales, destinatarios, servidor SMTP, puerto, remitente, orden de iniciar o detener la captura y carpeta de reportes. Nunca guarda la contraseña (RNF9, RNF10).'
+}
+
+// ---------- Relaciones ----------
+Ref: limite_modelo.id_modelo > modelo_periferico.id
+Ref: periferico.id_modelo > modelo_periferico.id
+Ref: periferico.id_equipo > equipo.id
+Ref: sesion.id_equipo > equipo.id
+Ref: evento.id_sesion > sesion.id
+Ref: evento.id_periferico > periferico.id
+Ref: contador_diario.id_periferico > periferico.id
+Ref: alerta.id_periferico > periferico.id
+Ref: incidente.id_sesion > sesion.id
+
+// ---------- Grupos (solo para ordenar el diagrama) ----------
+TableGroup referencia {
+  modelo_periferico
+  limite_modelo
+  configuracion
+}
+
+TableGroup inventario {
+  equipo
+  periferico
+}
+
+TableGroup registro_de_uso {
+  sesion
+  evento
+  incidente
+}
+
+TableGroup desgaste_y_alertas {
+  contador_diario
+  alerta
+}
