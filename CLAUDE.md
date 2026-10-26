@@ -63,15 +63,19 @@ C++ (Raw Input) ──stdout JSON──▶ Servicio Python ──▶ SQLite (eve
 
 Lee el documento que corresponda **antes** de implementar esa parte. El esquema de SQLite de `schema.sql` es la fuente de verdad de las tablas; si cambias una tabla, actualiza también el DBML y el diccionario.
 
-## Estructura de código prevista (propuesta, aún no creada)
+## Estructura de código prevista (propuesta; `pruebas/` y `capturador/` confirmadas el 25/10/2026)
 
 ```
 capturador/        C++ (Raw Input). CMakeLists.txt o proyecto de Visual Studio
 servicio/          Python: gestor_subproceso, validador, sesion, contador, evaluador, notificador, control
 ui/                Python + Tkinter: una clase por pantalla P01–P08
 comun/             Python: repositorio SQLite, configuración, constantes (compartido por servicio e interfaz)
-pruebas/           pytest
+pruebas/           pytest. Incluye `capturador_simulado.py`, que imita al capturador de C++ para probar el servicio sin Windows
 ```
+
+Para las pruebas: `python3 -m venv .venv`, `.venv/bin/pip install -r requirements-desarrollo.txt` y `.venv/bin/python -m pytest pruebas`. En Windows el ejecutable está en `.venv\Scripts\`.
+
+Revisión de tipos: el equipo usa **basedpyright** (configuración en `pyproject.toml`, la misma desde el editor y desde la terminal con `.venv/bin/basedpyright`). El código nuevo de Python debe quedar con tipos en los parámetros y sin errores ni advertencias.
 
 Los nombres de módulos salen de los diagramas de componentes (`docs/arquitectura/diagrama-componentes-*.puml`). Antes de crear carpetas, confirma con el equipo.
 
