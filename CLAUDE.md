@@ -73,7 +73,7 @@ comun/             Python: repositorio SQLite, configuración, constantes (compa
 pruebas/           pytest. Incluye `capturador_simulado.py`, que imita al capturador de C++ para probar el servicio sin Windows
 ```
 
-Para las pruebas: `python3 -m venv .venv`, `.venv/bin/pip install -r requirements-desarrollo.txt` y `.venv/bin/python -m pytest pruebas`. En Windows el ejecutable está en `.venv\Scripts\`.
+Para las pruebas: `python3 -m venv .venv`, `.venv/bin/pip install -r requirements-desarrollo.txt` y `.venv/bin/python -m pytest pruebas`. En Windows el ejecutable está en `.venv\Scripts\`. Las pruebas de Python también compilan el capturador de C++ (si hay un compilador) y lo revisan en modo simulado; ver `capturador/README.md`.
 
 Revisión de tipos: el equipo usa **basedpyright** (configuración en `pyproject.toml`, la misma desde el editor y desde la terminal con `.venv/bin/basedpyright`). El código nuevo de Python debe quedar con tipos en los parámetros y sin errores ni advertencias.
 
