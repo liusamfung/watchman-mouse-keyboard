@@ -15,16 +15,21 @@ Privacidad (RNF4): el nombre de la tecla solo viaja por stdout, como pide el
 contrato. Este script nunca lo escribe en stderr ni en ningún archivo.
 """
 import argparse
+import io
 import json
 import random
 import sys
 import time
+from collections.abc import Iterator
 from datetime import datetime
+from typing import TextIO
 
-DISPOSITIVO_TECLADO = {"dispositivo": "teclado", "vid": "046D", "pid": "C31C", "nombre": "Logitech K120"}
-DISPOSITIVO_MOUSE = {"dispositivo": "mouse", "vid": "046D", "pid": "C077", "nombre": "Logitech B100"}
+type Evento = dict[str, str | int]
 
-TECLAS = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") + ["ENTER", "ESPACIO", "RETROCESO", "TAB", "F5"]
+DISPOSITIVO_TECLADO: dict[str, str] = {"dispositivo": "teclado", "vid": "046D", "pid": "C31C", "nombre": "Logitech K120"}
+DISPOSITIVO_MOUSE: dict[str, str] = {"dispositivo": "mouse", "vid": "046D", "pid": "C077", "nombre": "Logitech B100"}
+
+TECLAS: list[str] = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") + ["ENTER", "ESPACIO", "RETROCESO", "TAB", "F5"]
 ANCHO_PANTALLA = 1920
 ALTO_PANTALLA = 1080
 
@@ -32,20 +37,31 @@ ALTO_PANTALLA = 1080
 CODIGO_CAIDA = 3
 
 
-def hora_actual():
+class Opciones(argparse.Namespace):
+    """Opciones de la línea de comandos, con sus tipos para que el editor las compruebe."""
+
+    # Los valores por defecto viven aquí: argparse no los pisa si el atributo ya existe.
+    cantidad: int | None = None
+    intervalo: float = 0.05
+    semilla: int | None = None
+    proporcion_invalidos: float = 0.0
+    caida_en: int | None = None
+
+
+def hora_actual() -> str:
     """Hora local en ISO 8601 con milisegundos, como pide el contrato."""
     return datetime.now().isoformat(timespec="milliseconds")
 
 
-def armar_evento(tipo, base_dispositivo, **extra):
+def armar_evento(tipo: str, base_dispositivo: dict[str, str], **extra: str | int) -> Evento:
     """Arma un evento con el orden de campos del contrato."""
-    evento = {"v": 1, "tipo": tipo, "hora": hora_actual()}
+    evento: Evento = {"v": 1, "tipo": tipo, "hora": hora_actual()}
     evento.update(base_dispositivo)
     evento.update(extra)
     return evento
 
 
-def generar_eventos_validos(azar):
+def generar_eventos_validos(azar: random.Random) -> Iterator[Evento]:
     """Genera eventos válidos sin fin. Una pulsación produce dos eventos: presionada y liberada."""
     while True:
         suerte = azar.random()
@@ -65,7 +81,12 @@ def generar_eventos_validos(azar):
             yield armar_evento("scroll", DISPOSITIVO_MOUSE, pasos=pasos)
 
 
-def linea_invalida(azar):
+def a_linea(evento: Evento) -> str:
+    """Convierte un evento en una línea JSON compacta."""
+    return json.dumps(evento, ensure_ascii=False, separators=(",", ":"))
+
+
+def linea_invalida(azar: random.Random) -> str:
     """Devuelve una línea que el validador debe rechazar (RF9)."""
     caso = azar.choice(["no_json", "sin_hora", "tipo_desconocido", "campo_prohibido"])
     if caso == "no_json":
@@ -78,30 +99,32 @@ def linea_invalida(azar):
     else:
         # Una tecla liberada no puede traer la tecla (RNF4).
         evento = armar_evento("tecla_liberada", DISPOSITIVO_TECLADO, tecla="E")
-    return json.dumps(evento, ensure_ascii=False, separators=(",", ":"))
+    return a_linea(evento)
 
 
-def leer_argumentos(argumentos=None):
+def leer_argumentos(argumentos: list[str] | None = None) -> Opciones:
     analizador = argparse.ArgumentParser(description="Escribe eventos JSON simulados por stdout.")
-    analizador.add_argument("--cantidad", type=int, default=None,
-                            help="cantidad de líneas a escribir; sin este dato, sigue hasta que lo cierren")
-    analizador.add_argument("--intervalo", type=float, default=0.05,
-                            help="segundos de espera entre líneas (0 para escribir lo más rápido posible)")
-    analizador.add_argument("--semilla", type=int, default=None,
-                            help="número para repetir la misma secuencia de eventos")
-    analizador.add_argument("--proporcion-invalidos", type=float, default=0.0,
-                            help="probabilidad (de 0 a 1) de que una línea sea inválida")
-    analizador.add_argument("--caida-en", type=int, default=None,
-                            help="termina de golpe con error después de esta cantidad de líneas (RF10)")
-    return analizador.parse_args(argumentos)
+    _ = analizador.add_argument("--cantidad", type=int,
+                                help="cantidad de líneas a escribir; sin este dato, sigue hasta que lo cierren")
+    _ = analizador.add_argument("--intervalo", type=float,
+                                help="segundos de espera entre líneas (0 para escribir lo más rápido posible; por defecto 0.05)")
+    _ = analizador.add_argument("--semilla", type=int,
+                                help="número para repetir la misma secuencia de eventos")
+    _ = analizador.add_argument("--proporcion-invalidos", type=float,
+                                help="probabilidad (de 0 a 1) de que una línea sea inválida")
+    _ = analizador.add_argument("--caida-en", type=int,
+                                help="termina de golpe con error después de esta cantidad de líneas (RF10)")
+    return analizador.parse_args(argumentos, namespace=Opciones())
 
 
-def principal(argumentos=None):
+def principal(argumentos: list[str] | None = None) -> int:
     datos = leer_argumentos(argumentos)
     azar = random.Random(datos.semilla)
 
     # El contrato pide UTF-8 y saltos de línea \n, también en Windows.
-    sys.stdout.reconfigure(encoding="utf-8", newline="\n")
+    salida: TextIO = sys.stdout
+    if isinstance(salida, io.TextIOWrapper):
+        salida.reconfigure(encoding="utf-8", newline="\n")
     print("Capturador simulado iniciado", file=sys.stderr, flush=True)
 
     escritas = 0
@@ -114,9 +137,9 @@ def principal(argumentos=None):
             if azar.random() < datos.proporcion_invalidos:
                 linea = linea_invalida(azar)
             else:
-                linea = json.dumps(next(eventos), ensure_ascii=False, separators=(",", ":"))
-            sys.stdout.write(linea + "\n")
-            sys.stdout.flush()
+                linea = a_linea(next(eventos))
+            _ = salida.write(linea + "\n")
+            salida.flush()
             escritas += 1
             if datos.intervalo > 0:
                 time.sleep(datos.intervalo)
