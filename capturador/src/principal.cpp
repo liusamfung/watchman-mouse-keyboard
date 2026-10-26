@@ -11,6 +11,10 @@
 #include "escritor.h"
 #include "simulador.h"
 
+#ifdef _WIN32
+#include "raw_input_windows.h"
+#endif
+
 namespace {
 constexpr int CODIGO_USO_INCORRECTO = 2;
 
@@ -68,8 +72,7 @@ int main(int argc, char** argv) {
     }
 
 #ifdef _WIN32
-    std::fputs("La captura con Raw Input todavía no está implementada.\n", stderr);
-    return CODIGO_USO_INCORRECTO;
+    return captura::ejecutar_raw_input();
 #else
     std::fputs("La captura real solo funciona en Windows. Use --simulado para probar.\n", stderr);
     return CODIGO_USO_INCORRECTO;

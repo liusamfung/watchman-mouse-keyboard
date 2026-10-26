@@ -27,6 +27,12 @@ target_include_directories(nucleo PUBLIC src)
 add_executable(captura src/principal.cpp)
 target_link_libraries(captura PRIVATE nucleo)
 
+# La captura real con Raw Input solo existe en Windows.
+if(WIN32)
+    target_sources(captura PRIVATE src/raw_input_windows.cpp)
+    target_link_libraries(captura PRIVATE user32)
+endif()
+
 # Pruebas unitarias: se ejecutan con  ctest --test-dir capturador/build -C Release
 enable_testing()
 add_executable(pruebas_unitarias pruebas/pruebas_unitarias.cpp)

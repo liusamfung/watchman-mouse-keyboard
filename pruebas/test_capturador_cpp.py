@@ -24,12 +24,25 @@ BANDERAS = ["-std=c++17", "-Wall", "-Wextra", "-Wpedantic", "-Werror", "-fsaniti
 NUCLEO = ["evento.cpp", "reglas_de_captura.cpp"]
 PROGRAMA = [*NUCLEO, "escritor.cpp", "simulador.cpp", "principal.cpp"]
 
+# Compilación cruzada con MinGW-w64: genera .exe para Windows desde macOS o Linux (sin ejecutarlo).
+COMPILADOR_WINDOWS = "x86_64-w64-mingw32-g++"
+BANDERAS_WINDOWS = ["-std=c++17", "-Wall", "-Wextra", "-Wpedantic", "-Werror",
+                    "-static", "-static-libgcc", "-static-libstdc++"]
+PROGRAMA_WINDOWS = [*PROGRAMA, "raw_input_windows.cpp"]
+
 TIPOS = {"tecla_presionada", "tecla_liberada", "mouse_movimiento", "clic_izquierdo", "clic_derecho", "scroll"}
 
 
-def compilar(compilador: str, fuentes: list[Path], salida: Path) -> Path:
+def compilar(
+    compilador: str,
+    fuentes: list[Path],
+    salida: Path,
+    banderas: list[str] | None = None,
+    bibliotecas: list[str] | None = None,
+) -> Path:
     resultado = subprocess.run(
-        [compilador, *BANDERAS, f"-I{FUENTES}", *map(str, fuentes), "-o", str(salida)],
+        [compilador, *(BANDERAS if banderas is None else banderas), f"-I{FUENTES}",
+         *map(str, fuentes), *(bibliotecas or []), "-o", str(salida)],
         capture_output=True, text=True, timeout=300, check=False,
     )
     assert resultado.returncode == 0, resultado.stderr
@@ -53,6 +66,14 @@ def capturador(compilador: str, tmp_path_factory: pytest.TempPathFactory) -> Pat
 def pruebas_unitarias(compilador: str, tmp_path_factory: pytest.TempPathFactory) -> Path:
     fuentes = [FUENTES / archivo for archivo in NUCLEO] + [PRUEBAS_UNITARIAS]
     return compilar(compilador, fuentes, tmp_path_factory.mktemp("cpp_unitarias") / "unitarias")
+
+
+@pytest.fixture(scope="session")
+def compilador_windows() -> str:
+    encontrado = shutil.which(COMPILADOR_WINDOWS)
+    if encontrado is None:
+        pytest.skip("no está instalado MinGW-w64 (brew install mingw-w64)")
+    return encontrado
 
 
 def simular(capturador: Path, *argumentos: str) -> subprocess.CompletedProcess[bytes]:
@@ -141,3 +162,23 @@ def test_el_gestor_de_python_lee_el_capturador_de_cpp(capturador: Path) -> None:
         gestor.detener()
     assert len(eventos) >= 100
     assert incidentes == []
+
+
+# ---------- Compilación para Windows (no se ejecuta: eso requiere un PC con Windows) ----------
+
+def test_el_capturador_con_raw_input_compila_para_windows(
+    compilador_windows: str, tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    salida = tmp_path_factory.mktemp("windows") / "captura.exe"
+    _ = compilar(compilador_windows, [FUENTES / archivo for archivo in PROGRAMA_WINDOWS], salida,
+                 banderas=BANDERAS_WINDOWS, bibliotecas=["-luser32"])
+    assert salida.read_bytes()[:2] == b"MZ"  # firma de un ejecutable de Windows
+
+
+def test_las_pruebas_unitarias_compilan_para_windows(
+    compilador_windows: str, tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    fuentes = [FUENTES / archivo for archivo in NUCLEO] + [PRUEBAS_UNITARIAS]
+    salida = tmp_path_factory.mktemp("windows_unitarias") / "unitarias.exe"
+    _ = compilar(compilador_windows, fuentes, salida, banderas=BANDERAS_WINDOWS)
+    assert salida.read_bytes()[:2] == b"MZ"

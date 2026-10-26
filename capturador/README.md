@@ -9,7 +9,7 @@ Programa que escribe un evento JSON por línea en `stdout`, con el formato de
 |---|---|
 | Núcleo portable (JSON, nombres de tecla, filtro de repetición, pasos de rueda, límite de movimiento, escritura en stdout) | Hecho y probado en macOS |
 | Modo `--simulado` (eventos inventados, en cualquier sistema) | Hecho |
-| Captura real con Raw Input | Pendiente, solo se puede probar en Windows |
+| Captura real con Raw Input (`src/raw_input_windows.*`) | Escrita y compilada para Windows desde macOS; **falta probarla en un PC con Windows** |
 
 ## Archivos
 
@@ -19,6 +19,7 @@ Programa que escribe un evento JSON por línea en `stdout`, con el formato de
 | `src/reglas_de_captura.*` | Nombre de la tecla, filtro de repetición (decisión 3), pasos enteros de la rueda (decisión 5) y límite de movimientos |
 | `src/escritor.*` | Escribe una línea y vacía el búfer; ajusta stdout para que `\n` no cambie en Windows |
 | `src/simulador.*` | Genera eventos inventados |
+| `src/raw_input_windows.*` | Solo Windows: ventana oculta, Raw Input, VID/PID del dispositivo y eventos reales |
 | `src/principal.cpp` | Lee las opciones y arranca el modo que corresponda |
 | `pruebas/pruebas_unitarias.cpp` | Pruebas del núcleo, sin bibliotecas externas |
 
