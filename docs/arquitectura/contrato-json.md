@@ -1,6 +1,6 @@
 # Contrato JSON entre el capturador (C++) y el servicio (Python)
 
-> **Estado: borrador para aprobar por el equipo.** Define qué escribe el capturador por `stdout` y qué espera leer el servicio. Es el único acuerdo entre las dos mitades del Sprint 3: con él, cada persona prueba su parte sin esperar a la otra.
+> **Estado: acordado para el Sprint 3 (25/10/2026).** Define qué escribe el capturador por `stdout` y qué espera leer el servicio. Es el único acuerdo entre las dos mitades del Sprint 3: con él, cada persona prueba su parte sin esperar a la otra. Las decisiones tomadas están al final del documento.
 
 Cubre RF1, RF3, RF4, RF5, RF6, RF7, RF9 y RNF4, RNF8. Los nombres de los tipos de evento son los mismos que acepta la tabla `evento` de `docs/base-de-datos/schema.sql`.
 
@@ -19,14 +19,14 @@ Cubre RF1, RF3, RF4, RF5, RF6, RF7, RF9 y RNF4, RNF8. Los nombres de los tipos d
 |---|---|---|---|
 | `v` | entero | todos | Versión del contrato. Hoy es `1`. |
 | `tipo` | texto | todos | Uno de: `tecla_presionada`, `tecla_liberada`, `mouse_movimiento`, `clic_izquierdo`, `clic_derecho`, `scroll`. |
-| `hora` | texto | todos | Hora local del evento en ISO 8601, con milisegundos: `2026-10-25T21:14:03.482`. |
+| `hora` | texto | todos | Hora local del evento en ISO 8601, con milisegundos: `2026-10-25T21:14:03.482`. **La pone el capturador.** |
 | `dispositivo` | texto | todos | `teclado` o `mouse`. |
 | `vid` | texto | todos | Identificador del fabricante, 4 dígitos hexadecimales en mayúscula (por ejemplo `046D`). |
 | `pid` | texto | todos | Identificador del producto, 4 dígitos hexadecimales en mayúscula (por ejemplo `C31C`). |
 | `nombre` | texto | opcional | Nombre del producto que informa Windows. |
-| `tecla` | texto | `tecla_presionada` | Nombre de la tecla en mayúsculas (`E`, `ENTER`, `ESPACIO`, `F5`). **Solo se usa para el contador.** |
-| `x`, `y` | entero | `mouse_movimiento` | Posición del cursor en píxeles de pantalla. |
-| `pasos` | entero | `scroll` | Pasos de la rueda. Positivo hacia arriba, negativo hacia abajo. |
+| `tecla` | texto | `tecla_presionada` | Nombre de la tecla en mayúsculas (`E`, `ENTER`, `ESPACIO`, `F5`), enviado por el capturador. **Solo se usa para el contador.** |
+| `x`, `y` | entero | `mouse_movimiento` | Posición **absoluta** del cursor en píxeles de pantalla (`GetCursorPos`). |
+| `pasos` | entero | `scroll` | Pasos **enteros** de la rueda. Positivo hacia arriba, negativo hacia abajo. |
 
 Reglas por tipo:
 
@@ -91,11 +91,15 @@ El capturador no envía un mensaje de despedida. El servicio detecta que termin�
 
 El contrato permite sustituir al capturador por un script de Python que escriba estas mismas líneas. Así el servicio, el validador y el contador se desarrollan y prueban en cualquier sistema operativo. Solo la captura real con Raw Input requiere Windows.
 
-## Preguntas abiertas para el equipo
+## Decisiones acordadas (25/10/2026)
 
-1. **¿Quién pone la hora?** Se propone que la ponga el capturador (más exacta); si no, la pone Python al recibir la línea.
-2. **Nombre de la tecla.** Se propone que C++ envíe el nombre (`E`, `ENTER`) y que Python lo use tal cual como `elemento`. Alternativa: enviar el código virtual y que Python lo traduzca.
-3. **Repetición automática.** Al mantener una tecla pulsada, Windows repite el evento. ¿Cuenta como una pulsación o como varias? Se propone contar solo la pulsación inicial.
-4. **Posición del cursor.** Raw Input entrega desplazamientos relativos. Se propone enviar la posición absoluta (`GetCursorPos`), porque RF7 pide las coordenadas del cursor.
-5. **Rueda de alta resolución.** Algunos mouse envían fracciones de paso. Se propone enviar `pasos` enteros (múltiplos de 120 de Windows divididos entre 120) y acumular el resto.
-6. **Dos unidades idénticas.** Comparten `vid` y `pid`. ¿Hace falta enviar también un identificador de la instancia del dispositivo para distinguirlas antes de que Soporte TI confirme la etiqueta?
+Se priorizó que el sistema sea lo más simple posible y que el capturador haga el trabajo que solo él puede hacer.
+
+| # | Tema | Decisión | Consecuencia para el código |
+|---|---|---|---|
+| 1 | Hora del evento | La pone **el capturador**. | El servicio guarda `hora` tal como llega; no usa el reloj de Python. |
+| 2 | Nombre de la tecla | **C++ envía el nombre** (`E`, `ENTER`). | Python lo usa tal cual como `elemento`; no necesita una tabla de traducción. |
+| 3 | Repetición automática | Una tecla mantenida cuenta como **una sola pulsación**. | El capturador recuerda qué teclas están presionadas y **no envía** la repetición hasta que se suelte. Python no puede hacerlo, porque `tecla_liberada` no trae la tecla (RNF4). |
+| 4 | Posición del cursor | Posición **absoluta** (`GetCursorPos`). | El capturador lee la posición del cursor en cada movimiento. |
+| 5 | Rueda del mouse | **Pasos enteros.** | El capturador convierte el valor de Windows (múltiplos de 120) a pasos enteros y acumula el resto hasta completar un paso. |
+| 6 | Dos unidades idénticas | **No se envía** identificador de instancia. | El servicio reconoce el modelo por `vid` y `pid`. Dos unidades iguales en un mismo equipo se distinguen por la etiqueta que confirma Soporte TI (RF18). |
