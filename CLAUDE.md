@@ -54,6 +54,7 @@ C++ (Raw Input) ──stdout JSON──▶ Servicio Python ──▶ SQLite (eve
 | Arquitectura explicada y decisiones | `docs/arquitectura/README.md` |
 | Diagramas C4 (contexto, contenedores, 3 de componentes, despliegue) | `docs/arquitectura/*.puml` |
 | Contrato JSON entre el capturador (C++) y el servicio (Python) | `docs/arquitectura/contrato-json.md` |
+| Guía para probar el capturador real en un PC con Windows | `docs/pruebas-en-windows.md` (usa `pruebas/manual_windows.py`) |
 | Flujos del Trabajador y de Soporte TI | `docs/flujos/flujo-trabajador.puml`, `docs/flujos/flujo-soporte-ti.puml` |
 | Diagramas de procesos (versión inicial, Avance 1) | `docs/flujos/procesos/` |
 | Base de datos: diccionario y relaciones | `docs/base-de-datos/README.md` |
