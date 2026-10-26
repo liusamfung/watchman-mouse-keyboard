@@ -75,6 +75,8 @@ pruebas/           pytest. Incluye `capturador_simulado.py`, que imita al captur
 
 Para las pruebas: `python3 -m venv .venv`, `.venv/bin/pip install -r requirements-desarrollo.txt` y `.venv/bin/python -m pytest pruebas`. En Windows el ejecutable está en `.venv\Scripts\`.
 
+Revisión de tipos: el equipo usa **basedpyright** (configuración en `pyproject.toml`, la misma desde el editor y desde la terminal con `.venv/bin/basedpyright`). El código nuevo de Python debe quedar con tipos en los parámetros y sin errores ni advertencias.
+
 Los nombres de módulos salen de los diagramas de componentes (`docs/arquitectura/diagrama-componentes-*.puml`). Antes de crear carpetas, confirma con el equipo.
 
 ## Cómo trabajar

@@ -1,0 +1,17 @@
+# Configuración compartida de las herramientas de Python del proyecto.
+# Todo el equipo usa el mismo análisis de tipos (basedpyright), también desde el editor.
+
+[tool.basedpyright]
+# Modo "recomendado" de basedpyright: revisa tipos, valores desconocidos y resultados sin usar.
+typeCheckingMode = "recommended"
+pythonVersion = "3.12"
+
+# Entorno virtual del proyecto, para que el editor encuentre pytest y las demás dependencias.
+venvPath = "."
+venv = ".venv"
+
+exclude = [
+    "**/.venv",
+    "**/__pycache__",
+    "docs",
+]
