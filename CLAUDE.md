@@ -53,6 +53,7 @@ C++ (Raw Input) ──stdout JSON──▶ Servicio Python ──▶ SQLite (eve
 | Requerimientos RF1–RF23 y RNF1–RNF12 | `docs/requerimientos.md` |
 | Arquitectura explicada y decisiones | `docs/arquitectura/README.md` |
 | Diagramas C4 (contexto, contenedores, 3 de componentes, despliegue) | `docs/arquitectura/*.puml` |
+| Contrato JSON entre el capturador (C++) y el servicio (Python) | `docs/arquitectura/contrato-json.md` |
 | Flujos del Trabajador y de Soporte TI | `docs/flujos/flujo-trabajador.puml`, `docs/flujos/flujo-soporte-ti.puml` |
 | Diagramas de procesos (versión inicial, Avance 1) | `docs/flujos/procesos/` |
 | Base de datos: diccionario y relaciones | `docs/base-de-datos/README.md` |
