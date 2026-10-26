@@ -15,3 +15,8 @@ exclude = [
     "**/__pycache__",
     "docs",
 ]
+
+[tool.pytest.ini_options]
+# "pytest" sin argumentos busca en pruebas/ y deja importar los paquetes de la raíz (servicio, comun).
+testpaths = ["pruebas"]
+pythonpath = ["."]
