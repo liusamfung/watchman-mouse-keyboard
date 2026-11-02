@@ -41,6 +41,9 @@ SQL_INSERTAR_INCIDENTE = """
     INSERT INTO incidente (id_sesion, tipo, fecha_hora, detalle, accion)
     VALUES (?, ?, ?, ?, ?)
 """
+SQL_ACTUALIZAR_ACTIVIDAD = """
+    UPDATE sesion SET seg_actividad_teclado = ?, seg_actividad_mouse = ? WHERE id = ?
+"""
 SQL_CERRAR_SESION = """
     UPDATE sesion
     SET fin = ?, tipo_cierre = ?, seg_actividad_teclado = ?, seg_actividad_mouse = ?
@@ -119,6 +122,16 @@ def _entero(valor: object) -> int:
     if isinstance(valor, int) and not isinstance(valor, bool):
         return valor
     raise TypeError("la base de datos devolvió un valor que no es un entero")
+
+
+def _filas_de_conteos(conteos: Iterable[Conteo]) -> list[tuple[object, ...]]:
+    """Valida los conteos y los convierte en filas para la base."""
+    filas: list[tuple[object, ...]] = []
+    for conteo in conteos:
+        if conteo.cantidad <= 0:
+            raise ValueError("la cantidad a sumar debe ser mayor que cero")
+        filas.append((conteo.id_periferico, conteo.fecha, conteo.tipo_conteo, conteo.elemento, conteo.cantidad))
+    return filas
 
 
 class Repositorio:
@@ -259,10 +272,7 @@ class Repositorio:
     def actualizar_actividad_sesion(self, id_sesion: int, seg_teclado: int, seg_mouse: int) -> None:
         """Guarda los segundos de actividad acumulados, para no perderlos si el equipo se apaga de golpe."""
         with self._candado, self._conexion:
-            _ = self._conexion.execute(
-                "UPDATE sesion SET seg_actividad_teclado = ?, seg_actividad_mouse = ? WHERE id = ?",
-                (seg_teclado, seg_mouse, id_sesion),
-            )
+            _ = self._conexion.execute(SQL_ACTUALIZAR_ACTIVIDAD, (seg_teclado, seg_mouse, id_sesion))
 
     def cerrar_sesion(self, id_sesion: int, fin: str, tipo_cierre: str, seg_teclado: int, seg_mouse: int) -> None:
         """Cierra una sesión. `tipo_cierre` es "normal" o "inesperado"."""
@@ -322,13 +332,24 @@ class Repositorio:
 
         Si el contador del día no existe, lo crea. Sirve para el guardado de cada minuto (RNF12).
         """
-        filas: list[tuple[object, ...]] = []
-        for conteo in conteos:
-            if conteo.cantidad <= 0:
-                raise ValueError("la cantidad a sumar debe ser mayor que cero")
-            filas.append((conteo.id_periferico, conteo.fecha, conteo.tipo_conteo, conteo.elemento, conteo.cantidad))
+        filas = _filas_de_conteos(conteos)
         with self._candado, self._conexion:
             _ = self._conexion.executemany(SQL_SUMAR_A_CONTADOR, filas)
+
+    def guardar_lote(
+        self, id_sesion: int, eventos: Iterable[EventoParaGuardar], conteos: Iterable[Conteo],
+        seg_teclado: int, seg_mouse: int,
+    ) -> None:
+        """Guarda de una vez eventos, contadores y actividad de la sesión, en una sola transacción (RNF12).
+
+        Si algo falla no se guarda nada, así quien llama puede reintentar el lote completo sin duplicar datos.
+        """
+        filas_eventos = [(e.id_sesion, e.id_periferico, e.tipo_evento, e.fecha_hora, e.x, e.y) for e in eventos]
+        filas_conteos = _filas_de_conteos(conteos)
+        with self._candado, self._conexion:
+            _ = self._conexion.executemany(SQL_INSERTAR_EVENTO, filas_eventos)
+            _ = self._conexion.executemany(SQL_SUMAR_A_CONTADOR, filas_conteos)
+            _ = self._conexion.execute(SQL_ACTUALIZAR_ACTIVIDAD, (seg_teclado, seg_mouse, id_sesion))
 
     def total_acumulado(self, id_periferico: int, tipo_conteo: str, elemento: str | None = None) -> int:
         """Suma de todos los días de un contador. Sin `elemento`, suma todos (por ejemplo, todo el teclado)."""
