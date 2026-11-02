@@ -18,7 +18,9 @@ conexion.execute("PRAGMA foreign_keys = ON")
 conexion.execute("PRAGMA busy_timeout = 5000")
 ```
 
-Ruta sugerida en Windows: `C:\ProgramData\CapturadorEventos\eventos.db` (configurable). Los archivos `*.db`, `*.db-wal` y `*.db-shm` no se suben a Git.
+En el código no hace falta escribir esto a mano: `comun/repositorio.py` (clase `Repositorio`) ejecuta los `PRAGMA` en cada conexión, crea `eventos.db` a partir de `schema.sql` la primera vez y es el único módulo que accede a la base (decisión de arquitectura 4). El servicio y la interfaz crean cada uno su propio `Repositorio` sobre el mismo archivo.
+
+Ruta sugerida en Windows: `C:\ProgramData\CapturadorEventos\eventos.db` (configurable con la variable de entorno `CAPTURADOR_RUTA_DB` o pasando la ruta al crear el `Repositorio`). Los archivos `*.db`, `*.db-wal` y `*.db-shm` no se suben a Git.
 
 ## Diccionario de tablas
 
