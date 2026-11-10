@@ -10,6 +10,17 @@ Une las piezas del servicio (RF8, RF9, RF10, RF12, RF13, RF16, RF17, RF18):
   `errores_de_base` y se reintenta en el siguiente guardado.
 
 Privacidad (RNF4): en la cola de eventos no viaja la tecla; el nombre de la tecla solo llega al contador.
+
+Por qué dos candados de guardado: `_candado_eventos` protege la cola, que escriben el hilo del capturador
+y el del guardado; `_candado_guardado` impide que dos guardados corran a la vez (el periódico y el de
+`detener`), para no guardar dos veces lo mismo. La cola no queda bloqueada mientras se escribe en la base:
+el hilo del capturador puede seguir agregando eventos durante un guardado.
+
+Se relaciona con: usa `comun/repositorio.py` (guarda en `evento`, `contador_diario`, `sesion`,
+`incidente`, `equipo`, `modelo_periferico` y `periferico`), `servicio/contador.py`, `servicio/sesion.py`,
+`servicio/validador.py` (`EventoValido`) y `servicio/gestor_subproceso.py` (`Incidente`) · lo usan el
+futuro `servicio/principal.py` (conectará `al_evento` y `al_incidente` con el gestor) y
+`pruebas/test_guardador.py`.
 """
 import sqlite3
 import threading
@@ -30,6 +41,8 @@ type ClaveDispositivo = tuple[str, str, str]  # (vid, pid, dispositivo)
 
 
 class Guardador:
+    """Recibe eventos e incidentes del gestor y los guarda en la base, con sesión, contadores y reintentos."""
+
     def __init__(
         self,
         repositorio: Repositorio,
@@ -38,6 +51,13 @@ class Guardador:
         intervalo: float = INTERVALO_DE_GUARDADO,
         max_eventos_pendientes: int = MAX_EVENTOS_PENDIENTES,
     ) -> None:
+        """
+        repositorio: la base donde se guarda todo.
+        nombre_equipo: nombre de esta PC; se crea en `equipo` la primera vez (RF18).
+        reloj: hora actual; las pruebas lo reemplazan por uno falso.
+        intervalo: segundos entre guardados periódicos.
+        max_eventos_pendientes: tope de la cola; pasado ese número se descartan los más viejos.
+        """
         self._repositorio: Repositorio = repositorio
         self._nombre_equipo: str = nombre_equipo
         self._reloj: Callable[[], datetime] = reloj
@@ -64,6 +84,7 @@ class Guardador:
 
     @property
     def id_sesion(self) -> int:
+        """Id de la sesión abierta. Lanza RuntimeError si el guardador no está en marcha."""
         return self._sesion_abierta().id_sesion
 
     def iniciar(self) -> None:
@@ -98,6 +119,8 @@ class Guardador:
         self._sesion = None
 
     def _guardar_cada_intervalo(self) -> None:
+        """Bucle del hilo: guarda lo pendiente cada `intervalo` segundos hasta que se pide parar."""
+        # `wait` hace de pausa y de señal de parada a la vez: devuelve True apenas se llama a `_parar.set()`.
         while not self._parar.wait(self._intervalo):
             _ = self.guardar_pendiente()
 
@@ -145,6 +168,8 @@ class Guardador:
             try:
                 self._repositorio.guardar_lote(sesion.id_sesion, eventos, conteos, teclado, mouse)
             except sqlite3.Error:
+                # Falló la transacción: nada quedó guardado a medias, así que se devuelve TODO a la cola y a
+                # los contadores para reintentarlo en el siguiente guardado (RNF12).
                 with self._candado_eventos:
                     self._eventos[:0] = eventos  # los viejos van primero
                     self._recortar_eventos_pendientes()
@@ -156,6 +181,7 @@ class Guardador:
     # ---------- Ayudas internas ----------
 
     def _sesion_abierta(self) -> ControlSesion:
+        """La sesión en curso. Lanza RuntimeError si `iniciar()` todavía no se llamó (o ya se llamó a `detener()`)."""
         if self._sesion is None:
             raise RuntimeError("el guardador no está en marcha: llame a iniciar()")
         return self._sesion
@@ -183,5 +209,6 @@ class Guardador:
             self.eventos_perdidos += exceso
 
     def _anotar_error(self) -> None:
+        """Cuenta una falla de la base. No se muestra nada al trabajador (RNF11); la cuenta queda para la interfaz."""
         with self._candado_eventos:
             self.errores_de_base += 1

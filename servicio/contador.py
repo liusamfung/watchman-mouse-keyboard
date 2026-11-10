@@ -6,6 +6,14 @@ por periférico y por día. Cada cierto tiempo el guardador toma lo pendiente y 
 Privacidad (RNF4): solo hay totales por tecla, nunca el orden ni el momento de cada pulsación. El nombre de la
 tecla vive únicamente en memoria y en `contador_diario.elemento`; este módulo nunca lo escribe en un log y su
 `repr` no lo muestra.
+
+Cómo funciona: un `Counter` en memoria con clave (periférico, día, tipo de conteo, elemento). `registrar`
+suma por cada evento; `tomar_pendientes` entrega todo lo acumulado y deja el contador en cero de un solo
+golpe; si el guardado falla, `reponer` lo devuelve para que no se pierda (RNF12).
+
+Se relaciona con: usa `comun/repositorio.py` (el tipo `Conteo`, que luego se suma en la tabla
+`contador_diario`) y `servicio/validador.py` (`EventoValido`) · lo usan `servicio/guardador.py` (registra
+y guarda) y `pruebas/test_contador.py`.
 """
 import threading
 from collections import Counter
@@ -40,6 +48,8 @@ class ContadorDesgaste:
     """Acumula los conteos pendientes de guardar. Se puede usar desde varios hilos."""
 
     def __init__(self) -> None:
+        """Empieza sin conteos pendientes. El candado protege al `Counter` porque lo usan dos hilos:
+        el que lee al capturador (`registrar`) y el del guardado periódico (`tomar_pendientes`)."""
         self._candado: threading.Lock = threading.Lock()
         self._pendientes: Counter[ClaveConteo] = Counter()
 
@@ -73,4 +83,5 @@ class ContadorDesgaste:
 
     @override
     def __repr__(self) -> str:
+        """Muestra solo cuántos contadores hay pendientes: ni las teclas ni sus cantidades (RNF4)."""
         return f"ContadorDesgaste({self.cantidad_pendiente()} contadores pendientes)"

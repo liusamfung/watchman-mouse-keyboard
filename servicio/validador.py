@@ -6,6 +6,16 @@ validado o el motivo del rechazo, y quien lo llama decide qué hacer.
 
 Privacidad (RNF4): el motivo de rechazo describe el problema, pero nunca copia la
 línea ni el valor de ningún campo, porque podría contener qué tecla se pulsó.
+
+Cómo funciona: `validar_linea` lee el JSON, revisa en orden la forma (objeto), el tipo, los campos
+comunes, los campos propios del tipo y sus valores, y junta TODOS los problemas en una lista en vez de
+parar en el primero; así un solo incidente describe todo lo que estaba mal. Si no hay problemas, crea un
+`EventoValido`. Hay dos clases de rechazo: `error_comunicacion` (no es JSON) y `evento_invalido` (es JSON
+pero no cumple el contrato).
+
+Se relaciona con: usa `docs/arquitectura/contrato-json.md` (las reglas que se validan) y solo la biblioteca
+estándar · lo usan `servicio/gestor_subproceso.py` (valida cada línea que lee), `servicio/contador.py`,
+`servicio/sesion.py` y `servicio/guardador.py` (reciben `EventoValido`) y `pruebas/test_validador.py`.
 """
 import json
 import re
@@ -70,6 +80,7 @@ type ResultadoValidacion = EventoValido | LineaRechazada
 def validar_linea(linea: str) -> ResultadoValidacion:
     """Valida una línea del capturador y devuelve el evento o el motivo del rechazo."""
     texto = linea.strip()
+    # Los mensajes de rechazo describen el problema sin copiar la línea ni sus valores (RNF4).
     if not texto:
         return LineaRechazada("error_comunicacion", "la línea está vacía")
     try:
@@ -94,6 +105,7 @@ def _es_entero(valor: object) -> bool:
 
 
 def _hora_valida(valor: object) -> bool:
+    """True si es un texto AAAA-MM-DDTHH:MM:SS.mmm con una fecha y una hora que existen."""
     if not isinstance(valor, str) or not PATRON_HORA.fullmatch(valor):
         return False
     try:
@@ -104,6 +116,10 @@ def _hora_valida(valor: object) -> bool:
 
 
 def _buscar_problemas(campos: dict[str, object]) -> list[str]:
+    """Revisa un evento ya leído como diccionario y devuelve la lista de problemas (vacía si cumple el contrato).
+
+    Si el tipo falta o no se conoce, devuelve solo ese problema: sin tipo no se sabe qué campos exigir.
+    """
     tipo = campos.get("tipo")
     if not isinstance(tipo, str) or tipo not in CAMPOS_OBLIGATORIOS:
         return ["tipo ausente o desconocido"]
@@ -161,11 +177,13 @@ def _problemas_de_valores(campos: dict[str, object]) -> list[str]:
 
 
 def _texto_opcional(campos: dict[str, object], nombre: str) -> str | None:
+    """El campo si es un texto; None si falta o es de otro tipo."""
     valor = campos.get(nombre)
     return valor if isinstance(valor, str) else None
 
 
 def _entero_opcional(campos: dict[str, object], nombre: str) -> int | None:
+    """El campo si es un entero (True y False no cuentan); None si falta o es de otro tipo."""
     valor = campos.get(nombre)
     return valor if isinstance(valor, int) and not isinstance(valor, bool) else None
 
