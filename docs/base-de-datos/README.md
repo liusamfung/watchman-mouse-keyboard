@@ -45,6 +45,24 @@ Ruta sugerida en Windows: `C:\ProgramData\CapturadorEventos\eventos.db` (configu
 - Un `periferico` genera muchos `evento`, muchos `contador_diario` y hasta dos `alerta` (90 % y 100 %).
 - `configuracion` no se relaciona con otras tablas.
 
+## Llaves foráneas
+
+Cada fila es un campo que apunta a otra tabla. Es la misma lista que los comentarios `-- FK →` de `schema.sql` y los `Ref` del DBML (`estructura-dbdiagramio`): si cambias una, cambia las tres.
+
+| Campo | FK → | Obligatoria | Para qué sirve |
+|---|---|---|---|
+| `limite_modelo.id_modelo` | `modelo_periferico.id` | Sí | El modelo al que se le fija este límite |
+| `periferico.id_modelo` | `modelo_periferico.id` | Sí | Qué modelo es (se reconoce por VID/PID) |
+| `periferico.id_equipo` | `equipo.id` | Sí | En qué PC está conectado |
+| `sesion.id_equipo` | `equipo.id` | Sí | PC donde corrió el servicio |
+| `evento.id_sesion` | `sesion.id` | Sí | Sesión en la que ocurrió el evento |
+| `evento.id_periferico` | `periferico.id` | Sí | Dispositivo que generó el evento |
+| `incidente.id_sesion` | `sesion.id` | No, puede ser NULL | Sesión en la que ocurrió el incidente |
+| `contador_diario.id_periferico` | `periferico.id` | Sí (además es parte de la clave primaria) | Periférico al que pertenece el conteo |
+| `alerta.id_periferico` | `periferico.id` | Sí | Periférico que llegó al umbral |
+
+Ninguna llave foránea define `ON DELETE`: SQLite usa su comportamiento por defecto (`NO ACTION`) y rechaza borrar una fila que otra todavía referencia. El proyecto no borra filas; el esquema prevé marcar con `activo = 0` los periféricos retirados.
+
 ## Decisiones de diseño
 
 1. **Privacidad (RNF4).** `evento` no tiene columna con la tecla pulsada. Las teclas solo existen como contadores agregados en `contador_diario`, sin orden ni secuencia.

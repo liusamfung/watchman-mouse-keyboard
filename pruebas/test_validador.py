@@ -1,4 +1,13 @@
-"""Pruebas del validador de eventos contra docs/arquitectura/contrato-json.md."""
+"""Pruebas del validador de eventos contra docs/arquitectura/contrato-json.md.
+
+Con qué datos: los ejemplos del propio contrato (se leen del archivo, así que si el contrato cambia y el
+validador no, la prueba falla), líneas armadas con `linea` a partir de una base de teclado y otra de mouse, y
+una lista de líneas inválidas (campos que faltan, sobran o tienen un valor incorrecto). Comprueba qué se acepta,
+qué se rechaza y con qué tipo de incidente, que se informen todos los problemas de una línea, y que el motivo
+de rechazo y el evento nunca muestren la tecla (RNF4).
+
+Se relaciona con: usa `servicio/validador.py` y `docs/arquitectura/contrato-json.md` · lo ejecuta pytest.
+"""
 import json
 import re
 from pathlib import Path
@@ -29,6 +38,7 @@ def linea(base: Campos, tipo: str, /, **cambios: object) -> str:
 
 
 def rechazada(texto: str) -> LineaRechazada:
+    """Valida `texto`, comprueba que fue rechazado y devuelve el rechazo para revisarlo."""
     resultado = validar_linea(texto)
     assert isinstance(resultado, LineaRechazada), texto
     return resultado

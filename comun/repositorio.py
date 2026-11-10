@@ -9,6 +9,18 @@ Reglas que este módulo hace cumplir:
 - No hay ningún método para guardar qué tecla se pulsó junto a un evento (RNF4): la tabla `evento`
   no tiene esa columna y `guardar_evento` no recibe ese dato.
 - Las fechas llegan como texto ISO 8601; el repositorio no usa el reloj, así que las pruebas son exactas.
+
+Cómo funciona, a grandes rasgos:
+- Una sola conexión por `Repositorio`, compartida entre hilos. `check_same_thread=False` lo permite y
+  un `threading.Lock` (`_candado`) ordena los accesos, porque el servicio escribe desde varios hilos.
+- Cada operación de escritura va en una transacción corta (`with self._conexion`): se confirma al
+  salir del bloque y se deshace si hay un error. Así un apagado brusco deja la base consistente (RNF12).
+- La primera vez que se abre un archivo nuevo, ejecuta `docs/base-de-datos/schema.sql` para crear las tablas.
+- Los SQL van como constantes de módulo, con parámetros `?`: nunca se arma una consulta pegando texto.
+
+Se relaciona con: usa `docs/base-de-datos/schema.sql` (tablas, restricciones y PRAGMA) y la variable de
+entorno CAPTURADOR_RUTA_DB · lo usan `servicio/guardador.py`, `servicio/sesion.py`, `servicio/contador.py`
+(a través de `Conteo` y `EventoParaGuardar`), la futura interfaz `ui/` y las pruebas de `pruebas/`.
 """
 import os
 import sqlite3
@@ -27,8 +39,9 @@ ESPERA_DE_BLOQUEO_MS = 5000
 NOMBRE_DESCONOCIDO = "desconocido"  # fabricante y nombre de un modelo que aún no está en el catálogo
 VARIABLE_DE_RUTA = "CAPTURADOR_RUTA_DB"
 
-type Fila = tuple[object, ...]
+type Fila = tuple[object, ...]  # una fila leída de SQLite; sus valores se convierten con `_entero` o `str`
 
+# Consultas que se repiten o que son largas. Las demás (de una línea) van dentro de su método.
 SQL_INSERTAR_PERIFERICO = """
     INSERT INTO periferico (id_modelo, id_equipo, estado_asignacion, activo, fecha_asignacion)
     VALUES (?, ?, 'por_confirmar', 1, ?)
@@ -49,6 +62,8 @@ SQL_CERRAR_SESION = """
     SET fin = ?, tipo_cierre = ?, seg_actividad_teclado = ?, seg_actividad_mouse = ?
     WHERE id = ?
 """
+# Para cada sesión sin `fin`, devuelve su id y su último momento conocido: la hora del último evento o,
+# si no tuvo ninguno, su inicio. Esa hora será el `fin` al cerrarla como inesperada (RNF12).
 SQL_SESIONES_ABIERTAS = """
     SELECT s.id, COALESCE((SELECT MAX(e.fecha_hora) FROM evento e WHERE e.id_sesion = s.id), s.inicio)
     FROM sesion s
@@ -58,6 +73,9 @@ SQL_INCIDENTE_DE_APAGADO = """
     INSERT INTO incidente (id_sesion, tipo, fecha_hora, detalle, accion)
     VALUES (?, 'apagado_inesperado', ?, ?, ?)
 """
+# "Upsert": si ya hay fila para ese periférico, día, tipo y elemento, suma; si no, la crea. Así el
+# desgaste de un día es una sola fila por tecla y nunca se guarda la secuencia de pulsaciones (RNF4).
+# Requiere la clave primaria compuesta de `contador_diario` (ver schema.sql).
 SQL_SUMAR_A_CONTADOR = """
     INSERT INTO contador_diario (id_periferico, fecha, tipo_conteo, elemento, cantidad)
     VALUES (?, ?, ?, ?, ?)
@@ -73,6 +91,7 @@ SQL_TOTALES_POR_ELEMENTO = """
     WHERE id_periferico = ? AND tipo_conteo = ?
     GROUP BY elemento
 """
+# Upsert por `clave`: escribir dos veces la misma clave reemplaza el valor (por ejemplo, la orden de la interfaz).
 SQL_ESCRIBIR_CONFIGURACION = """
     INSERT INTO configuracion (clave, valor) VALUES (?, ?)
     ON CONFLICT (clave) DO UPDATE SET valor = excluded.valor
@@ -157,10 +176,12 @@ class Repositorio:
     # ---------- Ciclo de vida ----------
 
     def cerrar(self) -> None:
+        """Cierra la conexión. Después de esto el repositorio ya no se puede usar."""
         with self._candado:
             self._conexion.close()
 
     def __enter__(self) -> Self:
+        """Permite `with Repositorio(...) as repo:` para que la conexión se cierre sola."""
         return self
 
     def __exit__(
@@ -169,15 +190,26 @@ class Repositorio:
         valor: BaseException | None,
         traza: TracebackType | None,
     ) -> None:
+        """Cierra la conexión al salir del `with`, haya o no un error; no oculta el error."""
         self.cerrar()
 
     def _preparar_conexion(self) -> None:
+        """Ejecuta los tres PRAGMA de esta conexión (decisión de arquitectura 4).
+
+        WAL deja que la interfaz lea mientras el servicio escribe; `foreign_keys` hace que SQLite rechace
+        una llave foránea que no existe; `busy_timeout` espera en vez de fallar si el otro proceso tiene
+        el bloqueo de escritura. Los valores salen de docs/base-de-datos/schema.sql y de su README.
+        """
         # Los PRAGMA van en CADA conexión: solo journal_mode se queda guardado en el archivo.
         _ = self._conexion.execute("PRAGMA journal_mode = WAL").fetchall()
         _ = self._conexion.execute("PRAGMA foreign_keys = ON")
         _ = self._conexion.execute(f"PRAGMA busy_timeout = {ESPERA_DE_BLOQUEO_MS}")
 
     def _crear_esquema_si_falta(self, ruta_esquema: Path) -> None:
+        """Crea las tablas ejecutando `ruta_esquema` solo si la base todavía no tiene la tabla `equipo`.
+
+        Lanza FileNotFoundError si hace falta crear la base y el archivo del esquema no existe.
+        """
         if self._uno("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'equipo'") is not None:
             return
         if not ruta_esquema.is_file():
@@ -188,12 +220,16 @@ class Repositorio:
     # ---------- Ayudas internas (se llaman con el candado ya tomado, o durante la creación) ----------
 
     def _uno(self, sql: str, parametros: tuple[object, ...] = ()) -> Fila | None:
+        """Ejecuta una consulta y devuelve su primera fila, o None si no hay ninguna."""
+        # `cast` solo ayuda al revisor de tipos: sqlite3 declara `Any` y aquí sabemos que es una tupla.
         return cast(Fila | None, self._conexion.execute(sql, parametros).fetchone())
 
     def _todas(self, sql: str, parametros: tuple[object, ...] = ()) -> list[Fila]:
+        """Ejecuta una consulta y devuelve todas sus filas (lista vacía si no hay ninguna)."""
         return cast(list[Fila], self._conexion.execute(sql, parametros).fetchall())
 
     def _insertar(self, sql: str, parametros: tuple[object, ...]) -> int:
+        """Ejecuta un INSERT y devuelve el id de la fila nueva. Lanza RuntimeError si SQLite no lo da."""
         identificador = self._conexion.execute(sql, parametros).lastrowid
         if identificador is None:
             raise RuntimeError("SQLite no devolvió el identificador de la fila nueva")
@@ -251,6 +287,8 @@ class Repositorio:
         if not limpia:
             raise ValueError("la etiqueta no puede estar vacía")
         with self._candado:
+            # El `try` va FUERA de `with self._conexion` para que la transacción ya se haya deshecho cuando
+            # llega el IntegrityError (índice único de `periferico.etiqueta`); entonces se traduce a un error propio.
             try:
                 with self._conexion:
                     cursor = self._conexion.execute(
@@ -372,6 +410,11 @@ class Repositorio:
     # ---------- Configuración ----------
 
     def leer_configuracion(self, clave: str) -> str | None:
+        """Devuelve el valor de un ajuste, o None si la clave no existe.
+
+        El servicio la llama cada cierto tiempo para ver la orden de iniciar o detener que dejó la
+        interfaz: los dos procesos se comunican solo por esta tabla (decisión de arquitectura 1).
+        """
         with self._candado:
             fila = self._uno("SELECT valor FROM configuracion WHERE clave = ?", (clave,))
         return str(fila[0]) if fila is not None else None

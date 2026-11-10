@@ -1,3 +1,15 @@
+// ============================================================================
+// DBML de la base de datos de Watchman (Capturador y Auditor de Eventos, Caso 4).
+// Qué hace: describe las mismas 10 tablas de schema.sql para dibujar el diagrama
+// en dbdiagram.io. No se ejecuta: la fuente de verdad es schema.sql.
+// Cómo funciona: un Enum por cada lista de valores permitidos, una Table por cada
+// tabla y, al final, un Ref por cada llave foránea. Cada campo que es llave
+// foránea lleva al costado "// FK → tabla.columna", igual que schema.sql y el
+// diccionario.
+// Se relaciona con: lo mantiene al día quien cambie schema.sql; lo explica el
+// diccionario de README.md en esta carpeta.
+// ============================================================================
+
 Project caso4_capturador_eventos {
   database_type: 'SQLite'
   Note: 'Base de datos local de cada equipo (eventos.db). Las fechas se guardan como texto ISO 8601.'
@@ -70,7 +82,7 @@ Table modelo_periferico {
 
 Table limite_modelo {
   id integer [pk, increment]
-  id_modelo integer [not null]
+  id_modelo integer [not null] // FK → modelo_periferico.id: el modelo al que se le fija este límite
   tipo_conteo tipo_conteo [not null]
   limite integer [not null, note: 'Máximo garantizado por el fabricante, por tecla, botón o paso de scroll']
 
@@ -83,8 +95,8 @@ Table limite_modelo {
 
 Table periferico {
   id integer [pk, increment]
-  id_modelo integer [not null]
-  id_equipo integer [not null]
+  id_modelo integer [not null] // FK → modelo_periferico.id: qué modelo es (se reconoce por VID/PID)
+  id_equipo integer [not null] // FK → equipo.id: en qué PC está conectado
   etiqueta varchar(20) [unique, note: 'Etiqueta de inventario, por ejemplo TEC-0042. Vacía hasta que soporte la confirme']
   estado_asignacion estado_asignacion [not null, default: 'confirmada']
   activo boolean [not null, default: true, note: 'false cuando el periférico fue retirado']
@@ -97,7 +109,7 @@ Table periferico {
 // ---------- Registro de uso ----------
 Table sesion {
   id integer [pk, increment]
-  id_equipo integer [not null]
+  id_equipo integer [not null] // FK → equipo.id: PC donde corrió el servicio
   inicio datetime [not null]
   fin datetime [note: 'Vacío mientras la sesión está en curso']
   tipo_cierre tipo_cierre [note: 'Vacío mientras la sesión está en curso']
@@ -113,8 +125,8 @@ Table sesion {
 
 Table evento {
   id integer [pk, increment, note: 'Identificador único del evento (RF8)']
-  id_sesion integer [not null]
-  id_periferico integer [not null]
+  id_sesion integer [not null] // FK → sesion.id: sesión en la que ocurrió
+  id_periferico integer [not null] // FK → periferico.id: dispositivo que generó el evento
   tipo_evento tipo_evento [not null]
   fecha_hora datetime [not null]
   x integer [note: 'Coordenada X, solo en movimientos del mouse (RF7)']
@@ -131,7 +143,7 @@ Table evento {
 
 // ---------- Desgaste y alertas ----------
 Table contador_diario {
-  id_periferico integer [not null]
+  id_periferico integer [not null] // FK → periferico.id (y parte de la clave primaria): a qué periférico pertenece el conteo
   fecha date [not null]
   tipo_conteo tipo_conteo [not null]
   elemento varchar(30) [not null, note: 'Tecla (E, Espacio...), botón (izquierdo, derecho) o rueda']
@@ -146,7 +158,7 @@ Table contador_diario {
 
 Table alerta {
   id integer [pk, increment]
-  id_periferico integer [not null]
+  id_periferico integer [not null] // FK → periferico.id: periférico que llegó al umbral
   umbral integer [not null, note: '90 o 100, porcentaje del límite']
   estado estado_alerta [not null, default: 'pendiente']
   detalle text [note: 'Elementos que superaron el umbral, por ejemplo: E 91 %']
@@ -167,7 +179,7 @@ Table alerta {
 
 Table incidente {
   id integer [pk, increment]
-  id_sesion integer
+  id_sesion integer // FK → sesion.id (opcional, puede ser NULL): sesión en la que ocurrió
   tipo tipo_incidente [not null]
   fecha_hora datetime [not null]
   detalle varchar(250)
@@ -189,6 +201,8 @@ Table configuracion {
 }
 
 // ---------- Relaciones ----------
+// Una línea por llave foránea (9): tabla_con_la_FK.campo > tabla_referenciada.id, es decir, muchas filas apuntan a una.
+// Ninguna define ON DELETE (SQLite usa NO ACTION y rechaza borrar una fila que otra todavía referencia).
 Ref: limite_modelo.id_modelo > modelo_periferico.id
 Ref: periferico.id_modelo > modelo_periferico.id
 Ref: periferico.id_equipo > equipo.id

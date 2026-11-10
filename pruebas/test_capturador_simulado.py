@@ -1,4 +1,12 @@
-"""Pruebas del capturador simulado. Las reglas del contrato las aplica el validador real."""
+"""Pruebas del capturador simulado. Las reglas del contrato las aplica el validador real.
+
+Con qué datos: ejecuta `pruebas/capturador_simulado.py` como proceso, con semillas fijas, y comprueba la
+cantidad de líneas, que salgan todos los tipos de evento, que la misma semilla repita la secuencia, que la
+tecla liberada no traiga la tecla, que las líneas inválidas sean rechazadas y que la caída simulada termine
+con error. Así se asegura que este simulador sirve como entrada confiable de las otras pruebas.
+
+Se relaciona con: usa `pruebas/capturador_simulado.py` y `servicio/validador.py` · lo ejecuta pytest.
+"""
 import json
 import subprocess
 import sys
@@ -23,6 +31,7 @@ def ejecutar(*argumentos: str) -> subprocess.CompletedProcess[bytes]:
 
 
 def lineas_de(resultado: subprocess.CompletedProcess[bytes]) -> list[str]:
+    """Las líneas de stdout ya decodificadas como UTF-8."""
     return resultado.stdout.decode("utf-8").splitlines()
 
 
@@ -56,6 +65,7 @@ def test_la_tecla_liberada_no_trae_la_tecla() -> None:
 
 def test_la_misma_semilla_repite_la_secuencia() -> None:
     def sin_hora(resultado: subprocess.CompletedProcess[bytes]) -> list[Evento]:
+        """Los eventos sin la hora: la hora cambia en cada ejecución, el resto debe repetirse con la misma semilla."""
         eventos = [cargar(linea) for linea in lineas_de(resultado)]
         for evento in eventos:
             del evento["hora"]

@@ -2,6 +2,19 @@
 //
 // Raw Input, y no un gancho global como SetWindowsHookEx, entrega junto a cada evento el dispositivo
 // que lo generó, y con eso se saca el VID/PID para contar el desgaste de cada periférico.
+//
+// Cómo funciona: crea una ventana oculta que solo recibe mensajes, registra el teclado y el mouse con
+// RIDEV_INPUTSINK para recibir los eventos aunque otra ventana tenga el foco, y en cada mensaje WM_INPUT lee
+// el evento, averigua qué dispositivo lo generó (VID/PID de su ruta), lo convierte en un `Evento` y escribe su
+// línea JSON en stdout. El teclado pasa por el filtro de repetición; la rueda, por el acumulador; el mouse,
+// por el limitador de movimientos (ver reglas_de_captura.h).
+//
+// Privacidad (RNF4): el nombre de la tecla solo viaja por stdout hacia el contador del servicio. Aquí no se
+// guarda ni se escribe en ningún archivo ni en stderr. RNF11: la ventana no se ve ni aparece en la barra de tareas.
+//
+// Se relaciona con: usa windows.h (Raw Input), escritor.h, evento.h y reglas_de_captura.h · lo usa principal.cpp
+// (a través de raw_input_windows.h). No se prueba con pruebas automáticas: se prueba a mano en Windows con
+// docs/pruebas-en-windows.md y pruebas/manual_windows.py.
 #ifdef _WIN32
 
 #include "raw_input_windows.h"
@@ -25,14 +38,17 @@ namespace captura {
 
 namespace {
 
+// A lo sumo un movimiento cada 100 ms (unos 10 por segundo), para no saturar stdout ni la tabla `evento`.
 constexpr std::chrono::milliseconds INTERVALO_MOVIMIENTO(100);
 constexpr unsigned CODIGO_SIN_TECLA = 0xFF;  // Raw Input usa 0xFF en algunas secuencias que no son una tecla
-constexpr int CODIGO_ERROR_AL_REGISTRAR = 3;
+constexpr int CODIGO_ERROR_AL_REGISTRAR = 3;  // código de salida cuando no se pudo crear la ventana o registrar Raw Input
 
+// Identifican qué dispositivos se piden a Raw Input: "página genérica" (0x01), uso 0x06 = teclado y 0x02 = mouse.
 constexpr USHORT PAGINA_GENERICA = 0x01;
 constexpr USHORT USO_TECLADO = 0x06;
 constexpr USHORT USO_MOUSE = 0x02;
 
+// Identifica el modelo de un periférico: 4 dígitos hexadecimales en mayúscula, o "0000" si no se pudieron leer.
 struct DatosDispositivo {
     std::string vid;
     std::string pid;
@@ -62,8 +78,11 @@ std::string buscar_codigo(const std::wstring& ruta, const std::wstring& marca) {
     return codigo;
 }
 
+// Lee el VID y el PID de un dispositivo a partir de su ruta, que Windows entrega con la forma
+// \\?\HID#VID_xxxx&PID_xxxx#... Si algo falla, devuelve "0000" en los dos campos (el servicio lo trata como desconocido).
 DatosDispositivo leer_datos_del_dispositivo(HANDLE dispositivo) {
     const DatosDispositivo desconocido{"0000", "0000"};
+    // GetRawInputDeviceInfoW se llama dos veces: la primera, con destino nulo, solo devuelve el tamaño necesario.
     UINT largo = 0;
     if (GetRawInputDeviceInfoW(dispositivo, RIDI_DEVICENAME, nullptr, &largo) != 0 || largo == 0) return desconocido;
 
@@ -86,6 +105,7 @@ const DatosDispositivo& datos_de(HANDLE dispositivo) {
     return encontrado->second;
 }
 
+// Crea un evento con la hora actual y los datos del dispositivo; quien lo llama completa los campos del tipo.
 Evento nuevo_evento(const char* tipo, const char* dispositivo, const DatosDispositivo& datos) {
     Evento evento;
     evento.tipo = tipo;
@@ -96,11 +116,14 @@ Evento nuevo_evento(const char* tipo, const char* dispositivo, const DatosDispos
     return evento;
 }
 
+// Escribe el evento en stdout. Si ya no se puede escribir, pide cerrar el bucle de mensajes.
 void emitir(const Evento& evento) {
     // Si el servicio cerró la lectura, no tiene sentido seguir capturando.
     if (!escribir_linea(a_json(evento))) PostQuitMessage(0);
 }
 
+// Convierte un evento de teclado en `tecla_presionada` o `tecla_liberada`. Una tecla mantenida cuenta una sola
+// vez (decisión 3 del contrato); las liberaciones se envían todas porque no suman desgaste, solo actividad.
 void procesar_teclado(const RAWKEYBOARD& teclado, const DatosDispositivo& datos) {
     const unsigned codigo = teclado.VKey;
     if (codigo == 0 || codigo == CODIGO_SIN_TECLA) return;
@@ -116,6 +139,8 @@ void procesar_teclado(const RAWKEYBOARD& teclado, const DatosDispositivo& datos)
     }
 }
 
+// Convierte un evento de mouse en cero, uno o varios eventos: clic izquierdo, clic derecho, scroll y movimiento
+// pueden llegar juntos en un mismo mensaje.
 void procesar_mouse(const RAWMOUSE& mouse, const DatosDispositivo& datos) {
     if ((mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_DOWN) != 0) {
         emitir(nuevo_evento("clic_izquierdo", "mouse", datos));
@@ -133,6 +158,8 @@ void procesar_mouse(const RAWMOUSE& mouse, const DatosDispositivo& datos) {
         }
     }
 
+    // Raw Input normalmente da el desplazamiento relativo del mouse; el contrato pide la posición absoluta (decisión 4),
+    // así que se consulta aparte con GetCursorPos, y solo cuando el limitador deja pasar el movimiento.
     const bool hubo_movimiento = mouse.lLastX != 0 || mouse.lLastY != 0;
     if (hubo_movimiento && estado.limitador.permitir(LimitadorMovimiento::Reloj::now())) {
         POINT punto{};
@@ -145,7 +172,9 @@ void procesar_mouse(const RAWMOUSE& mouse, const DatosDispositivo& datos) {
     }
 }
 
+// Lee el mensaje WM_INPUT y lo reparte según sea de teclado o de mouse. Si no se puede leer, lo ignora.
 void procesar_entrada(HRAWINPUT manejador) {
+    // GetRawInputData también se llama dos veces: la primera solo pregunta cuántos bytes se necesitan.
     UINT tamano = 0;
     if (GetRawInputData(manejador, RID_INPUT, nullptr, &tamano, sizeof(RAWINPUTHEADER)) != 0) return;
 
@@ -161,6 +190,8 @@ void procesar_entrada(HRAWINPUT manejador) {
     }
 }
 
+// Procedimiento de la ventana oculta: Windows lo llama por cada mensaje. Solo interesan WM_INPUT (hay un evento)
+// y WM_DESTROY (cerrar el bucle); el resto lo resuelve DefWindowProc.
 LRESULT CALLBACK procedimiento_de_la_ventana(HWND ventana, UINT mensaje, WPARAM wparam, LPARAM lparam) {
     if (mensaje == WM_INPUT) {
         procesar_entrada(reinterpret_cast<HRAWINPUT>(lparam));
@@ -175,6 +206,8 @@ LRESULT CALLBACK procedimiento_de_la_ventana(HWND ventana, UINT mensaje, WPARAM 
 }  // namespace
 
 int ejecutar_raw_input() {
+    // Pasos: 1) registrar la clase de la ventana, 2) crear la ventana oculta, 3) registrar teclado y mouse en
+    // Raw Input, 4) repetir el bucle de mensajes hasta que se pida salir. Si falla un paso, termina con código 3.
     const HINSTANCE instancia = GetModuleHandleW(nullptr);
 
     WNDCLASSEXW clase{};
@@ -210,6 +243,8 @@ int ejecutar_raw_input() {
         return CODIGO_ERROR_AL_REGISTRAR;
     }
 
+    // Bucle de mensajes: GetMessageW espera sin gastar procesador. Devuelve 0 con WM_QUIT (PostQuitMessage) y
+    // un valor negativo si hay un error; en ambos casos se sale del bucle.
     MSG mensaje;
     while (GetMessageW(&mensaje, nullptr, 0, 0) > 0) {
         DispatchMessageW(&mensaje);

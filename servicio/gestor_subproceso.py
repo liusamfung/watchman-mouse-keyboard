@@ -10,6 +10,16 @@ cambiar este módulo, y las pruebas pueden usar funciones simples.
 
 Privacidad (RNF4): el stderr del capturador se descarta y nunca se copia a un incidente.
 Los incidentes solo dicen qué pasó (por ejemplo, el código de salida), no el contenido.
+
+Cómo funciona: `iniciar` crea un hilo que repite "lanzar el capturador, leer su stdout hasta que termine,
+esperar, relanzar". La espera crece con los fallos seguidos (1 s, 5 s, 15 s y se queda en 15 s) para no
+saturar el equipo si el capturador se cae una y otra vez. Una ejecución que entregó al menos un evento
+válido reinicia esa cuenta. `detener` pide la parada y cierra el proceso; no cuenta como caída.
+
+Se relaciona con: usa `servicio/validador.py` (valida cada línea) y el ejecutable del capturador
+(`capturador/`, o `pruebas/capturador_simulado.py` en las pruebas), del que lee el contrato de
+`docs/arquitectura/contrato-json.md` · lo usan `servicio/guardador.py` (recibe sus eventos e incidentes por
+`al_evento` y `al_incidente`), el futuro `servicio/principal.py` y `pruebas/test_gestor_subproceso.py`.
 """
 import subprocess
 import sys
@@ -110,6 +120,7 @@ class GestorSubproceso:
             hilo.join(TIEMPO_DE_CIERRE * 3)
 
     def esta_activo(self) -> bool:
+        """True si el hilo que vigila al capturador sigue vivo."""
         return self._hilo is not None and self._hilo.is_alive()
 
     def esperar(self, tiempo: float | None = None) -> None:
@@ -120,6 +131,10 @@ class GestorSubproceso:
     # ---------- Bucle principal ----------
 
     def _ejecutar(self) -> None:
+        """Bucle del hilo: lanza el capturador, y cuando termina registra la caída, espera y lo relanza (RF10, RF21).
+
+        Termina cuando se pide detener o cuando se supera `max_relanzamientos` fallos seguidos.
+        """
         fallos_seguidos = 0
         while not self._detener.is_set():
             entrego_eventos, motivo = self._una_ejecucion()
@@ -131,6 +146,7 @@ class GestorSubproceso:
                 self._al_incidente(Incidente("caida_proceso", f"el capturador {motivo}", "se agotaron los relanzamientos"))
                 break
 
+            # El índice se limita al último valor: con tres esperas, del tercer fallo en adelante siempre es la última.
             espera = self._esperas[min(max(fallos_seguidos - 1, 0), len(self._esperas) - 1)]
             self._al_incidente(Incidente("caida_proceso", f"el capturador {motivo}", f"relanzado en {espera:g} s"))
             if self._detener.wait(espera):
@@ -138,10 +154,14 @@ class GestorSubproceso:
 
     def _una_ejecucion(self) -> tuple[bool, str]:
         """Lanza el capturador y lee hasta que termine. Devuelve (entregó eventos, cómo terminó)."""
+        # El candado cubre la creación del proceso: así `detener` nunca ve `_proceso` vacío justo
+        # cuando el capturador ya se lanzó pero todavía no se guardó, y no lo deja corriendo.
         with self._candado:
             if self._detener.is_set():
                 return False, "no se lanzó porque se pidió detener"
             try:
+                # stdin cerrado y stderr descartado (RNF4: no se copia su contenido); `bufsize=1` y `text=True`
+                # entregan cada línea apenas se escribe; `errors="replace"` evita que un byte raro tumbe la lectura.
                 proceso: subprocess.Popen[str] = subprocess.Popen(
                     self._comando,
                     stdin=subprocess.DEVNULL,
@@ -167,6 +187,7 @@ class GestorSubproceso:
                     entrego_eventos = True
             codigo = proceso.wait()
         finally:
+            # Pase lo que pase en la lectura, no se deja al capturador vivo ni su referencia guardada.
             _terminar(proceso)
             with self._candado:
                 self._proceso = None

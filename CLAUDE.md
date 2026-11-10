@@ -80,6 +80,18 @@ Revisión de tipos: el equipo usa **basedpyright** (configuración en `pyproject
 
 Los nombres de módulos salen de los diagramas de componentes (`docs/arquitectura/diagrama-componentes-*.puml`). Antes de crear carpetas, confirma con el equipo.
 
+## Comentarios en el código
+
+Pedido del profesor: el código se entiende leyendo sus comentarios. Esta regla vale para todo código nuevo y para cada cambio de código existente.
+
+- **Cabecera de archivo.** Todo archivo de código (`.py`, `.cpp`, `.h`, `.sql`) y el DBML empieza con un comentario que dice qué hace, cómo funciona a grandes rasgos y con quién se relaciona. Su última línea sigue la plantilla `Se relaciona con: usa … · lo usan …`: qué módulos lo usan y de cuáles depende (por ejemplo, qué lee del contrato JSON o qué tablas toca). En Python va en el docstring del módulo; en C++ y `.h`, con `//`; en SQL, con `--`; en el DBML, con `//`. Se omite solo en los archivos que se explican solos (por ejemplo, un `__init__.py` de una línea).
+- **Funciones y bloques.** Toda función, clase y método lleva un docstring (Python) o un comentario encima (C++) que dice qué hace y, si no es evidente, sus parámetros, qué devuelve y qué errores lanza. Los bloques no evidentes llevan un comentario con el porqué (por ejemplo: por qué WAL, por qué ese reintento, por qué Raw Input y no `SetWindowsHookEx`).
+- **Pruebas.** Cada archivo de pruebas empieza con una cabecera que dice qué prueba y con qué datos o simulador. Los ayudantes y los fixtures llevan docstring. Las funciones `test_*` cuyo nombre ya cuenta lo que comprueban no necesitan docstring, pero los bloques no evidentes dentro de ellas sí llevan el porqué.
+- **SQL.** En `schema.sql`, cada campo que es llave foránea lleva al costado `-- FK → tabla.columna` (y el `ON DELETE` si aplica; hoy ninguna lo define y la cabecera del esquema lo explica una sola vez). El DBML (`estructura-dbdiagramio`) y el diccionario de `docs/base-de-datos/README.md` deben decir lo mismo.
+- **Estilo.** En español. No se repite lo que ya dice el nombre: se explican las relaciones y las decisiones, citando el RF o RNF cuando aplique. Los comentarios nunca incluyen contraseñas, correos reales ni teclas reales (RNF10 y RNF4): los ejemplos usan teclas inventadas.
+- **Archivos generados.** No se editan ni se comentan (`build/`, `.venv/` y `*.exe`; Git los ignora).
+- **Revisión.** Los comentarios se actualizan en el mismo commit que el código, y la revisión de cada pull request incluye comprobarlo.
+
 ## Cómo trabajar
 
 - Plataforma objetivo: **Windows** (RNF2). El desarrollo de partes en Python puede hacerse en otro sistema, pero Raw Input, `keyring` con el Administrador de credenciales y el Programador de tareas se prueban en Windows.

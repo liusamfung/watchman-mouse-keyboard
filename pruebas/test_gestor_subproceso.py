@@ -1,4 +1,14 @@
-"""Pruebas del gestor del subproceso, usando el capturador simulado como proceso real."""
+"""Pruebas del gestor del subproceso, usando el capturador simulado como proceso real.
+
+Con qué datos: lanza `pruebas/capturador_simulado.py` con distintas opciones (`--cantidad`, `--caida-en`,
+`--proporcion-invalidos`, `--semilla`) y comprueba cómo reacciona el gestor: entrega de eventos válidos, lectura
+en tiempo real, parada limpia, caída y relanzamiento con esperas, rendirse tras los fallos permitidos, un
+capturador que no existe, líneas inválidas y que ningún incidente contenga la tecla (RNF4). Las esperas se
+reducen a milisegundos para que las pruebas sean rápidas.
+
+Se relaciona con: usa `servicio/gestor_subproceso.py`, `servicio/validador.py` y `pruebas/capturador_simulado.py`
+· lo ejecuta pytest.
+"""
 import sys
 import threading
 import time
@@ -18,28 +28,37 @@ class Recolector:
     """Guarda lo que entrega el gestor y permite esperar a que llegue algo."""
 
     def __init__(self) -> None:
+        """Empieza vacío. La condición avisa a quien espera cada vez que llega un evento o un incidente."""
         self.eventos: list[EventoValido] = []
         self.incidentes: list[Incidente] = []
         self._cambio: threading.Condition = threading.Condition()
 
     def al_evento(self, evento: EventoValido) -> None:
+        """Se pasa al gestor como `al_evento`: guarda el evento y despierta a quien esté esperando."""
         with self._cambio:
             self.eventos.append(evento)
             self._cambio.notify_all()
 
     def al_incidente(self, incidente: Incidente) -> None:
+        """Se pasa al gestor como `al_incidente`: guarda el incidente y despierta a quien esté esperando."""
         with self._cambio:
             self.incidentes.append(incidente)
             self._cambio.notify_all()
 
     def esperar(self, condicion: Callable[[], bool]) -> bool:
+        """Espera hasta TIEMPO_MAXIMO a que se cumpla `condicion`. Devuelve False si se acabó el tiempo.
+
+        Es mejor que dormir un tiempo fijo: la prueba sigue apenas llega lo esperado, sin esperas de más.
+        """
         with self._cambio:
             return self._cambio.wait_for(condicion, timeout=TIEMPO_MAXIMO)
 
     def esperar_eventos(self, cantidad: int) -> bool:
+        """Espera a tener al menos `cantidad` eventos."""
         return self.esperar(lambda: len(self.eventos) >= cantidad)
 
     def esperar_incidentes(self, cantidad: int) -> bool:
+        """Espera a tener al menos `cantidad` incidentes."""
         return self.esperar(lambda: len(self.incidentes) >= cantidad)
 
 
@@ -59,12 +78,17 @@ def crear(
     esperas: tuple[float, ...] = (0.01,),
     max_relanzamientos: int | None = None,
 ) -> GestorSubproceso:
+    """Crea un gestor que entrega a `recolector` y lo anota en `gestores` para que se detenga al terminar.
+
+    Por defecto espera solo 0.01 s entre relanzamientos, para que las pruebas de caídas no tarden.
+    """
     gestor = GestorSubproceso(comando, recolector.al_evento, recolector.al_incidente, esperas, max_relanzamientos)
     gestores.append(gestor)
     return gestor
 
 
 def simulador(*argumentos: str) -> list[str]:
+    """El comando para lanzar el capturador simulado de Python, sin pausa entre líneas, más `argumentos`."""
     return [sys.executable, SIMULADOR, "--intervalo", "0", *argumentos]
 
 

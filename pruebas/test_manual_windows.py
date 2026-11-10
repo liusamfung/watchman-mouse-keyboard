@@ -1,4 +1,12 @@
-"""Pruebas del script de prueba manual. Se usan el capturador simulado de Python en lugar del real."""
+"""Pruebas del script de prueba manual. Se usan el capturador simulado de Python en lugar del real.
+
+Con qué datos: listas fijas de retrasos para las estadísticas y el veredicto, `Resumen` armados a mano para
+el informe (sin teclas, RNF4) y `pruebas/capturador_simulado.py` corriendo un par de segundos para comprobar
+que el script cuenta los eventos, las líneas descartadas y las caídas, y que falla si el capturador no existe.
+No prueba el capturador real: esa prueba se hace a mano en Windows.
+
+Se relaciona con: usa `pruebas/manual_windows.py` y `pruebas/capturador_simulado.py` · lo ejecuta pytest.
+"""
 import sys
 from pathlib import Path
 

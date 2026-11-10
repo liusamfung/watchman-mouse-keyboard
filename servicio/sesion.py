@@ -6,6 +6,14 @@ Este módulo abre y cierra la sesión en la base y mide el tiempo de actividad d
 Cómo se mide la actividad: cuenta los **segundos distintos en los que hubo al menos un evento** de ese
 dispositivo. Si se escribe de corrido durante 10 segundos, son 10 s de actividad; las pausas no suman. Así no
 hay que elegir cuánto tiempo sin eventos significa "inactivo".
+
+Cómo funciona: `abrir` crea la fila de `sesion`; `registrar_actividad` recibe cada evento y suma un segundo
+solo si es el primero de su dispositivo en ese segundo (usa la hora del evento, no el reloj de la PC);
+`cerrar` guarda el fin y los segundos acumulados. El reloj se recibe como parámetro para que las pruebas
+puedan fijar la hora.
+
+Se relaciona con: usa `comun/repositorio.py` (tabla `sesion`: `abrir_sesion` y `cerrar_sesion`) y
+`servicio/validador.py` (`EventoValido`) · lo usa `servicio/guardador.py` y `pruebas/test_sesion.py`.
 """
 import threading
 from collections.abc import Callable
@@ -21,7 +29,14 @@ def texto_iso(momento: datetime) -> str:
 
 
 class ControlSesion:
+    """La sesión de un equipo: se abre al iniciar el servicio y se cierra al detenerlo (RF12)."""
+
     def __init__(self, repositorio: Repositorio, id_equipo: int, reloj: Callable[[], datetime] = datetime.now) -> None:
+        """
+        repositorio: donde se guarda la sesión.
+        id_equipo: equipo (fila de `equipo`) al que pertenece la sesión.
+        reloj: devuelve la hora actual; en las pruebas se reemplaza por uno falso.
+        """
         self._repositorio: Repositorio = repositorio
         self._id_equipo: int = id_equipo
         self._reloj: Callable[[], datetime] = reloj
@@ -32,6 +47,7 @@ class ControlSesion:
 
     @property
     def id_sesion(self) -> int:
+        """Id de la sesión abierta. Lanza RuntimeError si todavía no se llamó a `abrir`."""
         if self._id_sesion is None:
             raise RuntimeError("la sesión todavía no se abrió")
         return self._id_sesion

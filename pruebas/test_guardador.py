@@ -1,4 +1,16 @@
-"""Pruebas del guardador: de los eventos del capturador a las tablas de la base de datos."""
+"""Pruebas del guardador: de los eventos del capturador a las tablas de la base de datos.
+
+Con qué datos: una base SQLite nueva en una carpeta temporal por prueba, un `Reloj` falso con la hora fija
+2026-11-02 08:00:00, eventos armados con `evento_de_prueba` y `pulsacion` (teclas inventadas) y, en la última
+prueba, el capturador simulado de Python conectado de punta a punta. Comprueba: inicio y fin de la sesión,
+creación de modelos y periféricos "por confirmar", guardado de eventos, contadores y actividad, que guardar dos
+veces no duplique, que la tecla solo exista en `contador_diario` (RNF4), reintentos si la base falla (RNF12),
+que una falla de la base no detenga al servicio (RNF11) y el descarte de los eventos más viejos si la cola
+se llena.
+
+Se relaciona con: usa `servicio/guardador.py`, `comun/repositorio.py`, `servicio/gestor_subproceso.py`,
+`pruebas/ayudas_base.py` y `pruebas/capturador_simulado.py` · lo ejecuta pytest.
+"""
 import sqlite3
 import sys
 import time
@@ -18,17 +30,20 @@ TIEMPO_MAXIMO = 15.0
 
 @pytest.fixture
 def ruta_db(tmp_path: Path) -> Path:
+    """La ruta de una base que todavía no existe, dentro de la carpeta temporal de la prueba."""
     return tmp_path / "eventos.db"
 
 
 @pytest.fixture
 def repo(ruta_db: Path) -> Iterator[Repositorio]:
+    """Un repositorio sobre `ruta_db` que se cierra al terminar la prueba."""
     with Repositorio(ruta_db) as repositorio:
         yield repositorio
 
 
 @pytest.fixture
 def reloj() -> Reloj:
+    """Un reloj falso que parte el 2026-11-02 a las 08:00:00."""
     return Reloj()
 
 
@@ -51,6 +66,7 @@ def crear(guardadores: list[Guardador], repo: Repositorio, reloj: Reloj, **opcio
 
 
 def esperar(condicion: Callable[[], bool], tiempo: float = TIEMPO_MAXIMO) -> bool:
+    """Revisa `condicion` cada 20 ms hasta `tiempo` segundos. Devuelve True apenas se cumple, False si se acaba el tiempo."""
     limite = time.monotonic() + tiempo
     while time.monotonic() < limite:
         if condicion():
@@ -179,6 +195,7 @@ def test_guardar_dos_veces_no_duplica_nada(
 
 
 def guardador_periferico(ruta_db: Path) -> int:
+    """El id del primer periférico que el guardador creó en la base."""
     fila = consultar(ruta_db, "SELECT id FROM periferico ORDER BY id LIMIT 1")
     identificador = fila[0][0]
     assert isinstance(identificador, int)
@@ -240,6 +257,7 @@ def test_si_el_guardado_falla_se_reintenta_con_todo_y_sin_duplicar(
     def guardar_lote_con_una_falla(
         id_sesion: int, eventos: Iterable[EventoParaGuardar], conteos: Iterable[Conteo], seg_teclado: int, seg_mouse: int,
     ) -> None:
+        """Reemplaza a `guardar_lote`: falla la primera vez (como si la base estuviera bloqueada) y después guarda de verdad."""
         intentos.append(1)
         if len(intentos) == 1:
             raise sqlite3.OperationalError("database is locked")
@@ -266,6 +284,7 @@ def test_una_falla_al_registrar_un_incidente_o_un_dispositivo_no_detiene_al_serv
     guardador.iniciar()
 
     def bloqueada(*_argumentos: object) -> int:
+        """Reemplaza a un método del repositorio y siempre falla, como una base bloqueada."""
         raise sqlite3.OperationalError("database is locked")
 
     monkeypatch.setattr(repo, "guardar_incidente", bloqueada)
@@ -303,6 +322,7 @@ def test_del_capturador_simulado_a_la_base_de_datos(
     gestor = GestorSubproceso(comando, guardador.al_evento, guardador.al_incidente)
     gestor.iniciar()
     try:
+        # Espera a que haya al menos 200 eventos guardados por el hilo periódico (`in range(200, 10**9)` es "200 o más").
         assert esperar(lambda: consultar(ruta_db, "SELECT COUNT(*) FROM evento")[0][0] in range(200, 10**9))
     finally:
         gestor.detener()
@@ -310,6 +330,7 @@ def test_del_capturador_simulado_a_la_base_de_datos(
 
     # Lo que se contó coincide con lo que se guardó: las dos cuentas salen de los mismos eventos.
     def suma(tipo_conteo: str) -> object:
+        """El total guardado en `contador_diario` para ese tipo de conteo (0 si no hay filas)."""
         return consultar(ruta_db, "SELECT COALESCE(SUM(cantidad), 0) FROM contador_diario WHERE tipo_conteo = ?",
                          (tipo_conteo,))[0][0]
 
