@@ -1,4 +1,12 @@
-"""Ayudas compartidas por las pruebas que usan la base de datos y eventos."""
+"""Ayudas compartidas por las pruebas que usan la base de datos y eventos.
+
+Qué hay aquí: `consultar` (leer la base con otra conexión), `evento_de_prueba` y `pulsacion` (eventos válidos
+ya armados) y `Reloj` (un reloj falso que solo avanza cuando la prueba lo pide). Los datos son los de los dos
+modelos de ejemplo de docs/base-de-datos/schema.sql (teclado K120 y mouse B100); las teclas son inventadas.
+
+Se relaciona con: usa `servicio/validador.py` (`EventoValido`) y `sqlite3` · lo usan `pruebas/test_contador.py`,
+`pruebas/test_guardador.py` y `pruebas/test_sesion.py`.
+"""
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -41,10 +49,13 @@ class Reloj:
     """Un reloj falso que solo avanza cuando la prueba lo pide."""
 
     def __init__(self, inicio: datetime | None = None) -> None:
+        """`inicio`: la hora de partida; por defecto 2026-11-02 08:00:00, el día de los datos de prueba."""
         self._ahora: datetime = inicio or datetime(2026, 11, 2, 8, 0, 0)
 
     def __call__(self) -> datetime:
+        """Devuelve la hora actual del reloj falso. Así se pasa donde el código espera `datetime.now`."""
         return self._ahora
 
     def avanzar(self, segundos: float) -> None:
+        """Adelanta el reloj falso esa cantidad de segundos."""
         self._ahora += timedelta(seconds=segundos)

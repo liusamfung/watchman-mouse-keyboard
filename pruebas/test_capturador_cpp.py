@@ -2,6 +2,15 @@
 
 Compilan el programa con el compilador del sistema y comprueban que lo que escribe cumple
 el contrato, usando el validador real de Python. La captura con Raw Input solo se prueba en Windows.
+
+Con qué datos: compila `capturador/src` con las advertencias estrictas del CMakeLists.txt y con los
+detectores de errores de memoria (address y undefined), ejecuta `captura --simulado` con distintas
+semillas y revisa cada línea que escribe con `validar_linea`. También corre `pruebas_unitarias.cpp`, comprueba
+que el gestor de Python lee ese capturador y que el código de Raw Input compila para Windows con MinGW-w64
+(solo compila: no se ejecuta fuera de Windows). Si no hay compilador, las pruebas se omiten.
+
+Se relaciona con: usa `capturador/src/*.cpp`, `capturador/pruebas/pruebas_unitarias.cpp`,
+`servicio/validador.py` y `servicio/gestor_subproceso.py` · lo ejecuta pytest.
 """
 import json
 import shutil
@@ -40,6 +49,10 @@ def compilar(
     banderas: list[str] | None = None,
     bibliotecas: list[str] | None = None,
 ) -> Path:
+    """Compila `fuentes` con `compilador` y devuelve la ruta del ejecutable. Si falla, la prueba muestra el error.
+
+    banderas: por defecto las estrictas de BANDERAS; bibliotecas: opciones extra para el enlazador.
+    """
     resultado = subprocess.run(
         [compilador, *(BANDERAS if banderas is None else banderas), f"-I{FUENTES}",
          *map(str, fuentes), *(bibliotecas or []), "-o", str(salida)],
@@ -51,6 +64,7 @@ def compilar(
 
 @pytest.fixture(scope="session")
 def compilador() -> str:
+    """El compilador de C++ del sistema (clang++, g++ o c++); omite las pruebas si no hay ninguno."""
     encontrado = shutil.which("clang++") or shutil.which("g++") or shutil.which("c++")
     if encontrado is None:
         pytest.skip("no hay un compilador de C++ en este sistema")
@@ -59,17 +73,20 @@ def compilador() -> str:
 
 @pytest.fixture(scope="session")
 def capturador(compilador: str, tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """El programa completo compilado una sola vez por sesión (compilar tarda unos segundos)."""
     return compilar(compilador, [FUENTES / archivo for archivo in PROGRAMA], tmp_path_factory.mktemp("cpp") / "captura")
 
 
 @pytest.fixture(scope="session")
 def pruebas_unitarias(compilador: str, tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """El ejecutable de las pruebas unitarias de C++, que solo necesita el núcleo portable (sin simulador)."""
     fuentes = [FUENTES / archivo for archivo in NUCLEO] + [PRUEBAS_UNITARIAS]
     return compilar(compilador, fuentes, tmp_path_factory.mktemp("cpp_unitarias") / "unitarias")
 
 
 @pytest.fixture(scope="session")
 def compilador_windows() -> str:
+    """El compilador cruzado MinGW-w64 para generar .exe; omite la prueba si no está instalado."""
     encontrado = shutil.which(COMPILADOR_WINDOWS)
     if encontrado is None:
         pytest.skip("no está instalado MinGW-w64 (brew install mingw-w64)")
@@ -77,10 +94,12 @@ def compilador_windows() -> str:
 
 
 def simular(capturador: Path, *argumentos: str) -> subprocess.CompletedProcess[bytes]:
+    """Ejecuta `captura --simulado` con `argumentos` y devuelve su salida en bytes (así se ven exactos los saltos de línea y stderr)."""
     return subprocess.run([str(capturador), "--simulado", *argumentos], capture_output=True, timeout=60, check=False)
 
 
 def lineas_de(resultado: subprocess.CompletedProcess[bytes]) -> list[str]:
+    """Las líneas de stdout ya decodificadas como UTF-8."""
     return resultado.stdout.decode("utf-8").splitlines()
 
 
@@ -114,6 +133,7 @@ def test_usa_saltos_de_linea_n_y_no_escribe_en_stderr(capturador: Path) -> None:
 
 def test_la_misma_semilla_repite_la_secuencia(capturador: Path) -> None:
     def sin_hora(resultado: subprocess.CompletedProcess[bytes]) -> list[dict[str, object]]:
+        """Los eventos sin la hora: la hora cambia en cada ejecución, el resto debe repetirse con la misma semilla."""
         eventos = [cast(dict[str, object], json.loads(linea)) for linea in lineas_de(resultado)]
         for evento in eventos:
             del evento["hora"]

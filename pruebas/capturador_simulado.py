@@ -13,6 +13,15 @@ Ejemplos:
 
 Privacidad (RNF4): el nombre de la tecla solo viaja por stdout, como pide el
 contrato. Este script nunca lo escribe en stderr ni en ningún archivo.
+
+Cómo funciona: elige al azar (con semilla) el siguiente grupo de eventos y escribe una línea JSON por evento.
+Con `--proporcion-invalidos` mezcla líneas que el validador debe rechazar, y con `--caida-en` termina de golpe
+con código 3 para probar que el gestor lo relanza. Es el equivalente en Python de `capturador/src/simulador.cpp`:
+sirve para probar el servicio sin compilar el capturador de C++. Las teclas son las inventadas de `TECLAS`.
+
+Se relaciona con: usa docs/arquitectura/contrato-json.md (formato de cada línea) · lo lanzan como subproceso
+`pruebas/test_gestor_subproceso.py`, `pruebas/test_guardador.py` y `pruebas/test_manual_windows.py`, y lo
+prueba `pruebas/test_capturador_simulado.py`.
 """
 import argparse
 import io
@@ -103,6 +112,7 @@ def linea_invalida(azar: random.Random) -> str:
 
 
 def leer_argumentos(argumentos: list[str] | None = None) -> Opciones:
+    """Lee las opciones de la línea de comandos (o de `argumentos`, para las pruebas) y las devuelve tipadas."""
     analizador = argparse.ArgumentParser(description="Escribe eventos JSON simulados por stdout.")
     _ = analizador.add_argument("--cantidad", type=int,
                                 help="cantidad de líneas a escribir; sin este dato, sigue hasta que lo cierren")
@@ -118,6 +128,8 @@ def leer_argumentos(argumentos: list[str] | None = None) -> Opciones:
 
 
 def principal(argumentos: list[str] | None = None) -> int:
+    """Escribe los eventos hasta cumplir `--cantidad` o hasta que el lector cierre. Devuelve el código de salida:
+    0 si terminó bien o si el servicio cerró la lectura, y CODIGO_CAIDA si se pidió una caída simulada."""
     datos = leer_argumentos(argumentos)
     azar = random.Random(datos.semilla)
 

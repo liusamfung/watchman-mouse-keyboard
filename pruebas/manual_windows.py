@@ -11,6 +11,14 @@ Privacidad (RNF4): el resumen solo cuenta tipos de evento y dispositivos. Nunca 
 Se ejecuta desde la carpeta raíz del repositorio, con `-m`, para que encuentre el paquete `servicio`:
     python -m pruebas.manual_windows --capturador captura.exe --segundos 30
     python -m pruebas.manual_windows --capturador captura.exe --simulado   (prueba del script, sin teclado ni mouse)
+
+Cómo funciona: usa el mismo `GestorSubproceso` que el servicio, así que prueba el camino real (subproceso,
+lectura línea por línea y validación). Un `Recolector` cuenta lo que llega desde el hilo del gestor y
+`dar_formato` arma el informe. Retraso = hora de cada evento (la pone el capturador) menos la hora en que
+Python la recibe, en la misma PC, para comprobar RNF1.
+
+Se relaciona con: usa `servicio/gestor_subproceso.py` y `servicio/validador.py` · lo prueba
+`pruebas/test_manual_windows.py` y lo explica `docs/pruebas-en-windows.md`.
 """
 import argparse
 import sys
@@ -44,6 +52,7 @@ class Recolector:
     """Recibe lo que entrega el gestor desde su hilo y lo cuenta."""
 
     def __init__(self) -> None:
+        """Empieza con todo en cero. El candado existe porque el gestor llama desde su hilo y el principal lee."""
         self._candado: threading.Lock = threading.Lock()
         self._por_tipo: Counter[str] = Counter()
         self._dispositivos: Counter[str] = Counter()
@@ -52,6 +61,7 @@ class Recolector:
         self._caidas: int = 0
 
     def al_evento(self, evento: EventoValido) -> None:
+        """Cuenta el evento por tipo y por dispositivo, y anota cuánto tardó en llegar (RNF1). No guarda la tecla."""
         retraso_ms = (datetime.now() - datetime.fromisoformat(evento.hora)).total_seconds() * 1000
         with self._candado:
             self._por_tipo[evento.tipo] += 1
@@ -59,6 +69,7 @@ class Recolector:
             self._retrasos.append(max(0.0, retraso_ms))
 
     def al_incidente(self, incidente: Incidente) -> None:
+        """Cuenta las caídas del capturador por un lado y las líneas descartadas por otro."""
         with self._candado:
             if incidente.tipo == "caida_proceso":
                 self._caidas += 1
@@ -66,6 +77,7 @@ class Recolector:
                 self._descartadas += 1
 
     def instantanea(self) -> Resumen:
+        """Una copia de lo contado hasta ahora; se puede pedir mientras la prueba sigue corriendo."""
         with self._candado:
             return Resumen(
                 total=len(self._retrasos),
@@ -94,6 +106,7 @@ def cumple(resumen: Resumen) -> bool:
 
 
 def dar_formato(resumen: Resumen, segundos: float) -> str:
+    """El informe final en texto: totales, dispositivos, retraso y el veredicto CUMPLE / NO CUMPLE."""
     promedio, percentil_95, maximo = calcular_estadisticas(resumen.retrasos_ms)
     tipos = ", ".join(f"{tipo} {cantidad}" for tipo, cantidad in sorted(resumen.por_tipo.items())) or "ninguno"
     dispositivos = ", ".join(sorted(resumen.dispositivos)) or "ninguno"
@@ -134,12 +147,15 @@ def ejecutar_prueba(
 
 
 class Opciones(argparse.Namespace):
+    """Opciones de la línea de comandos, con sus valores por defecto y tipos."""
+
     capturador: str = "captura.exe"
     segundos: float = 30.0
     simulado: bool = False
 
 
 def leer_argumentos(argumentos: Sequence[str] | None = None) -> Opciones:
+    """Lee las opciones de la línea de comandos (o de `argumentos`, para las pruebas)."""
     analizador = argparse.ArgumentParser(description="Prueba manual del capturador.")
     _ = analizador.add_argument("--capturador", help="ruta del capturador (por defecto captura.exe)")
     _ = analizador.add_argument("--segundos", type=float, help="duración de la prueba (por defecto 30)")
@@ -149,6 +165,7 @@ def leer_argumentos(argumentos: Sequence[str] | None = None) -> Opciones:
 
 
 def principal(argumentos: Sequence[str] | None = None) -> int:
+    """Corre la prueba y muestra el informe. Devuelve 0 si cumple y 1 si no cumple o se interrumpió."""
     opciones = leer_argumentos(argumentos)
     comando = [opciones.capturador, *(["--simulado", "--intervalo-ms", "20"] if opciones.simulado else [])]
 

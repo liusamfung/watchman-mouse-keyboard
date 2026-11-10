@@ -1,4 +1,14 @@
-"""Pruebas del repositorio SQLite. Cada prueba usa su propia base en una carpeta temporal."""
+"""Pruebas del repositorio SQLite. Cada prueba usa su propia base en una carpeta temporal.
+
+Con qué datos: bases nuevas creadas desde `docs/base-de-datos/schema.sql` (con los modelos de ejemplo K120 y
+B100), un equipo "PC-PRUEBA-01" y fechas fijas de noviembre de 2026; las teclas son inventadas. Comprueba:
+creación de la base y de las diez tablas, los tres PRAGMA en cada conexión, equipos, modelos, periféricos y
+etiquetas (RF17, RF18), sesiones y cierre de las que quedaron abiertas (RNF12), eventos e incidentes, que no
+exista ningún lugar para guardar la tecla de un evento (RNF4), contadores diarios, configuración, el uso desde
+varios hilos y que dos repositorios sobre el mismo archivo se vean entre sí (servicio e interfaz).
+
+Se relaciona con: usa `comun/repositorio.py` y `docs/base-de-datos/schema.sql` · lo ejecuta pytest.
+"""
 import inspect
 import sqlite3
 import threading
@@ -24,11 +34,13 @@ TABLAS = {"equipo", "modelo_periferico", "limite_modelo", "periferico", "sesion"
 
 @pytest.fixture
 def ruta_db(tmp_path: Path) -> Path:
+    """La ruta de una base que todavía no existe, dentro de una carpeta que tampoco existe."""
     return tmp_path / "datos" / "eventos.db"  # la carpeta "datos" aún no existe
 
 
 @pytest.fixture
 def repo(ruta_db: Path) -> Iterator[Repositorio]:
+    """Un repositorio sobre `ruta_db` que se cierra al terminar la prueba."""
     with Repositorio(ruta_db) as repositorio:
         yield repositorio
 
@@ -240,6 +252,7 @@ def test_la_tabla_evento_y_guardar_evento_no_tienen_nada_de_teclas(ruta_db: Path
 
 
 def ruta_db_con_esquema(ruta: Path) -> Path:
+    """Crea en `ruta` una base con el esquema (abrir y cerrar un repositorio) y devuelve la misma ruta."""
     with Repositorio(ruta):
         pass
     return ruta
@@ -337,6 +350,7 @@ def test_varios_hilos_pueden_guardar_a_la_vez(ruta_db: Path, repo: Repositorio) 
     errores: list[BaseException] = []
 
     def escribir(numero: int) -> None:
+        """Lo que hace cada hilo: guarda 50 eventos y suma 50 clics; si algo falla, anota el error para la prueba."""
         try:
             for i in range(50):
                 repo.guardar_evento(sesion, periferico, "clic_izquierdo", f"2026-11-02T08:{numero:02d}:{i:02d}.000")

@@ -1,4 +1,12 @@
-"""Pruebas del control de sesión y de la medida de actividad."""
+"""Pruebas del control de sesión y de la medida de actividad.
+
+Con qué datos: una base nueva por prueba, un `Reloj` falso fijo en 2026-11-02 08:00:00 y eventos con horas
+elegidas a mano (teclas inventadas) para comprobar la regla "un segundo de actividad = un segundo distinto con
+al menos un evento": varios eventos en el mismo segundo suman uno, las pausas no suman, y el teclado y el
+mouse se miden por separado. También comprueba lo que se guarda al abrir y al cerrar la sesión (RF12).
+
+Se relaciona con: usa `servicio/sesion.py`, `comun/repositorio.py` y `pruebas/ayudas_base.py` · lo ejecuta pytest.
+"""
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -11,22 +19,26 @@ from servicio.sesion import ControlSesion
 
 @pytest.fixture
 def ruta_db(tmp_path: Path) -> Path:
+    """La ruta de una base que todavía no existe, dentro de la carpeta temporal de la prueba."""
     return tmp_path / "eventos.db"
 
 
 @pytest.fixture
 def repo(ruta_db: Path) -> Iterator[Repositorio]:
+    """Un repositorio sobre `ruta_db` que se cierra al terminar la prueba."""
     with Repositorio(ruta_db) as repositorio:
         yield repositorio
 
 
 @pytest.fixture
 def reloj() -> Reloj:
+    """Un reloj falso que parte el 2026-11-02 a las 08:00:00."""
     return Reloj()
 
 
 @pytest.fixture
 def sesion(repo: Repositorio, reloj: Reloj) -> ControlSesion:
+    """Un `ControlSesion` sin abrir, para el equipo PC-PRUEBA-01 y con el reloj falso."""
     return ControlSesion(repo, repo.obtener_o_crear_equipo("PC-PRUEBA-01"), reloj)
 
 

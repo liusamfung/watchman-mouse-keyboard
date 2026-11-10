@@ -1,4 +1,13 @@
-"""Pruebas del contador de desgaste."""
+"""Pruebas del contador de desgaste.
+
+Con qué datos: eventos armados con `evento_de_prueba` y `pulsacion` (teclas inventadas, fechas fijas de
+noviembre de 2026) que se registran en un `ContadorDesgaste` sin base de datos. Comprueba qué eventos suman
+(pulsaciones, clics y pasos de rueda), que el conteo vaya al día del evento, `tomar_pendientes` y `reponer`,
+el uso desde varios hilos y que ni el contador ni el conteo muestren la tecla al imprimirse (RNF4).
+
+Se relaciona con: usa `servicio/contador.py`, `comun/repositorio.py` (`Conteo`) y `pruebas/ayudas_base.py` ·
+lo ejecuta pytest.
+"""
 import threading
 
 from comun.repositorio import Conteo
@@ -88,6 +97,7 @@ def test_varios_hilos_pueden_contar_a_la_vez() -> None:
     contador = ContadorDesgaste()
 
     def contar() -> None:
+        """Lo que hace cada hilo: registra 500 pulsaciones de la misma tecla."""
         for _ in range(500):
             contador.registrar(pulsacion("E"), PERIFERICO)
 
