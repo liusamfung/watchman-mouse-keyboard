@@ -1,4 +1,10 @@
 // Evento de entrada y su conversión a JSON, según docs/arquitectura/contrato-json.md.
+//
+// Un `Evento` guarda lo que el capturador sabe de una pulsación, un clic, un movimiento o un paso de rueda.
+// `a_json` lo convierte en la línea que lee el servicio; los campos sin valor no se escriben.
+//
+// Se relaciona con: usa docs/arquitectura/contrato-json.md (campos y orden) · lo usan evento.cpp,
+// simulador.cpp, raw_input_windows.cpp y pruebas_unitarias.cpp. La línea que produce la valida servicio/validador.py.
 #pragma once
 
 #include <optional>

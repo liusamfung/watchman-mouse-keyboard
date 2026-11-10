@@ -1,4 +1,10 @@
 // Escritura de líneas en stdout, como pide el contrato: una línea por evento y vaciado inmediato.
+//
+// Por qué se vacía el búfer en cada línea (RNF1): el servicio de Python lee stdout en tiempo real; si el
+// sistema retuviera las líneas, los eventos llegarían tarde y de golpe.
+//
+// Se relaciona con: usa solo la biblioteca estándar · lo usan principal.cpp (`preparar_salida`),
+// simulador.cpp y raw_input_windows.cpp (`escribir_linea`). Lo que escribe lo lee servicio/gestor_subproceso.py.
 #pragma once
 
 #include <string>

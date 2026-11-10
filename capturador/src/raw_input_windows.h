@@ -1,4 +1,7 @@
 // Captura real del teclado y del mouse con Raw Input. Solo se compila en Windows.
+//
+// Se relaciona con: usa raw_input_windows.cpp (la implementación) · lo usa principal.cpp, solo cuando se compila
+// para Windows y no se pide --simulado. La línea JSON que escribe la lee servicio/gestor_subproceso.py.
 #pragma once
 
 namespace captura {

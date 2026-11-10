@@ -1,5 +1,13 @@
 // Pruebas unitarias del núcleo portable del capturador. Sin bibliotecas externas (RNF7).
 // Devuelve 0 si todo pasa y 1 si algo falla; cada fallo se muestra en stderr.
+//
+// Qué prueba y con qué datos: la serialización a JSON (`a_json`, `escapar_json`, `hora_actual`) con un evento de
+// ejemplo de hora fija, y las reglas de captura (`nombre_de_tecla`, filtro de repetición, acumulador de rueda y
+// limitador de movimiento) con secuencias inventadas. El limitador recibe la hora como parámetro, así que
+// no hay esperas ni dependencia del reloj. No prueba Raw Input: eso solo existe en Windows.
+//
+// Se relaciona con: usa evento.h y reglas_de_captura.h · lo compila y lo ejecuta pruebas/test_capturador_cpp.py,
+// y el objetivo `pruebas_unitarias` de capturador/CMakeLists.txt.
 #include <chrono>
 #include <cstdio>
 #include <regex>
@@ -9,9 +17,11 @@
 #include "reglas_de_captura.h"
 
 namespace {
-int fallos = 0;
-int verificaciones = 0;
+int fallos = 0;          // cuántas verificaciones fallaron
+int verificaciones = 0;  // cuántas se hicieron en total
 
+// Cuenta la verificación y, si la condición es falsa, cuenta el fallo y muestra archivo, línea y condición.
+// Es una macro y no una función para que __LINE__ y #condicion apunten a la línea de la prueba y no a esta.
 #define VERIFICAR(condicion)                                                           \
     do {                                                                               \
         ++verificaciones;                                                              \
@@ -23,6 +33,8 @@ int verificaciones = 0;
 
 using captura::Evento;
 
+// Un evento de ejemplo con hora fija y los datos del teclado K120 o del mouse B100 de schema.sql; cada prueba
+// completa los campos propios de su tipo.
 Evento evento_de_ejemplo(const std::string& tipo, const std::string& dispositivo) {
     Evento evento;
     evento.tipo = tipo;
@@ -42,6 +54,7 @@ void prueba_json_de_una_pulsacion() {
               R"("vid":"046D","pid":"C31C","nombre":"Logitech K120","tecla":"E"})");
 }
 
+// Un clic no lleva tecla, coordenadas ni pasos: el JSON no debe traer esos campos (tabla "Reglas por tipo").
 void prueba_json_omite_los_campos_sin_valor() {
     const Evento clic = evento_de_ejemplo("clic_izquierdo", "mouse");
     VERIFICAR(captura::a_json(clic) ==
@@ -60,6 +73,7 @@ void prueba_json_de_movimiento_y_scroll() {
     VERIFICAR(captura::a_json(rueda).find(R"("pasos":-3})") != std::string::npos);
 }
 
+// Comillas, barra invertida y caracteres de control deben escaparse, o una línea de JSON podría romperse.
 void prueba_escapar_json() {
     VERIFICAR(captura::escapar_json("a\"b") == "a\\\"b");
     VERIFICAR(captura::escapar_json("a\\b") == "a\\\\b");
@@ -68,6 +82,7 @@ void prueba_escapar_json() {
     VERIFICAR(captura::escapar_json("camión") == "camión");  // UTF-8 sin cambios
 }
 
+// La hora cambia en cada llamada, así que no se compara el valor: solo que tenga el formato del contrato.
 void prueba_formato_de_la_hora() {
     const std::regex formato(R"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3})");
     VERIFICAR(std::regex_match(captura::hora_actual(), formato));
@@ -111,6 +126,7 @@ void prueba_filtro_de_repeticion() {
     VERIFICAR(filtro.es_pulsacion_nueva(0x1000));
 }
 
+// Windows entrega 120 unidades por paso; las fracciones se acumulan hasta completar un paso entero.
 void prueba_acumulador_de_rueda() {
     captura::AcumuladorRueda rueda;
     VERIFICAR(rueda.agregar(120) == 1);
@@ -126,6 +142,7 @@ void prueba_acumulador_de_rueda() {
     VERIFICAR(rueda.agregar(-60) == -1);
 }
 
+// La hora se pasa como parámetro, sin dormir: la prueba es instantánea y exacta.
 void prueba_limitador_de_movimiento() {
     using std::chrono::milliseconds;
     const auto inicio = captura::LimitadorMovimiento::Reloj::now();
@@ -139,6 +156,7 @@ void prueba_limitador_de_movimiento() {
 }
 }  // namespace
 
+// Ejecuta todas las pruebas, muestra el total y devuelve 1 si alguna verificación falló.
 int main() {
     prueba_json_de_una_pulsacion();
     prueba_json_omite_los_campos_sin_valor();

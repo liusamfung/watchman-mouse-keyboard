@@ -1,3 +1,11 @@
+// Implementación del modo simulado (ver simulador.h).
+//
+// Cómo funciona: un generador de números aleatorios con semilla elige el siguiente "grupo" de eventos (50 % teclado,
+// 30 % movimiento, 12 % clic, 8 % scroll), lo mete en una cola y se escribe una línea por evento. Una
+// pulsación produce dos eventos (presionada y liberada), por eso la cola.
+//
+// Se relaciona con: usa simulador.h, evento.h, escritor.h y reglas_de_captura.h · lo usa principal.cpp. Su
+// salida sirve de dato para servicio/validador.py y para las pruebas de pruebas/.
 #include "simulador.h"
 
 #include <chrono>
@@ -14,10 +22,12 @@
 namespace captura {
 
 namespace {
+// Tamaño de una pantalla inventada: solo limita las coordenadas que se generan.
 constexpr int ANCHO_PANTALLA = 1920;
 constexpr int ALTO_PANTALLA = 1080;
 
-// Los mismos modelos de ejemplo de docs/base-de-datos/schema.sql.
+// Un evento con hora actual y los datos de uno de los dos modelos de ejemplo (teclado K120 o mouse B100),
+// los mismos de docs/base-de-datos/schema.sql. Quien lo llama completa los campos propios del tipo.
 Evento evento_base(const std::string& tipo, bool es_teclado) {
     Evento evento;
     evento.tipo = tipo;
@@ -29,7 +39,7 @@ Evento evento_base(const std::string& tipo, bool es_teclado) {
     return evento;
 }
 
-// Letras, dígitos y algunas teclas especiales (códigos virtuales de Windows).
+// Letras, dígitos y algunas teclas especiales (códigos virtuales de Windows). Se arma una sola vez y se reutiliza.
 const std::vector<unsigned>& teclas_posibles() {
     static const std::vector<unsigned> teclas = [] {
         std::vector<unsigned> codigos;
@@ -42,6 +52,7 @@ const std::vector<unsigned>& teclas_posibles() {
 }
 
 // Genera el siguiente grupo de eventos: una pulsación produce dos (presionada y liberada).
+// El tipo se elige con un número entre 0 y 1: por debajo de 0.50 teclado, 0.80 movimiento, 0.92 clic y el resto scroll.
 void generar(std::mt19937& azar, std::deque<Evento>& pendientes) {
     std::uniform_real_distribution<double> suerte(0.0, 1.0);
     const double dado = suerte(azar);
@@ -70,6 +81,7 @@ void generar(std::mt19937& azar, std::deque<Evento>& pendientes) {
 }  // namespace
 
 int ejecutar_simulador(const OpcionesSimulador& opciones) {
+    // `mt19937` con semilla: la misma semilla repite la secuencia, así las pruebas pueden comparar resultados.
     std::mt19937 azar(opciones.semilla);
     std::deque<Evento> pendientes;
     long escritas = 0;

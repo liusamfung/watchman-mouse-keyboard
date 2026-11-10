@@ -1,3 +1,12 @@
+// Implementación de las reglas de captura portables (ver reglas_de_captura.h).
+//
+// Cómo funciona: `nombre_de_tecla` resuelve primero los rangos (letras, dígitos, teclado numérico y F1-F24) y
+// luego una tabla de nombres en español para las teclas especiales; lo que no conoce sale como VK_xx.
+// El filtro de repetición usa un bit por tecla; el acumulador de rueda guarda el resto de la división entre 120;
+// el limitador compara la hora de cada movimiento con la del último que dejó pasar.
+//
+// Se relaciona con: usa reglas_de_captura.h y la biblioteca estándar · lo usan raw_input_windows.cpp,
+// simulador.cpp y pruebas_unitarias.cpp.
 #include "reglas_de_captura.h"
 
 #include <cstdio>
@@ -5,7 +14,9 @@
 namespace captura {
 
 namespace {
+// Nombre en español de las teclas que no tienen un solo carácter, o nullptr si el código no está en la tabla.
 // Códigos virtuales de Windows (winuser.h). Se escriben aquí para no depender de windows.h.
+// Los nombres no incluyen espacios y salen en mayúsculas porque así los exige el contrato.
 const char* nombre_especial(unsigned codigo) {
     switch (codigo) {
         case 0x08: return "RETROCESO";
@@ -72,11 +83,15 @@ std::string nombre_de_tecla(unsigned codigo_virtual) {
     if (const char* nombre = nombre_especial(codigo_virtual)) {
         return nombre;
     }
+    // Sin nombre conocido se devuelve el código en hexadecimal: así no se pierde el conteo de esa tecla, y el
+    // nombre sigue cumpliendo el formato del contrato. `& 0xFF` evita que un código enorme desborde el texto.
     char texto[16];
     std::snprintf(texto, sizeof texto, "VK_%02X", codigo_virtual & 0xFFU);
     return texto;
 }
 
+// Cuando una tecla se mantiene, Windows manda un evento de "presionada" tras otro; solo el primero se marca
+// como presionada y pasa, el resto se descarta hasta que llegue la liberación (decisión 3 del contrato).
 bool FiltroRepeticion::es_pulsacion_nueva(unsigned codigo_virtual) {
     if (codigo_virtual >= presionadas_.size()) return true;  // código fuera de rango: no se filtra
     if (presionadas_.test(codigo_virtual)) return false;
@@ -88,6 +103,7 @@ void FiltroRepeticion::registrar_liberacion(unsigned codigo_virtual) {
     if (codigo_virtual < presionadas_.size()) presionadas_.reset(codigo_virtual);
 }
 
+// Ejemplo con números inventados: 60 + 60 unidades dan 0 pasos y luego 1, porque el resto se conserva.
 int AcumuladorRueda::agregar(int unidades) {
     resto_ += unidades;
     const int pasos = resto_ / UNIDADES_POR_PASO;  // la división entera trunca hacia cero
@@ -95,6 +111,8 @@ int AcumuladorRueda::agregar(int unidades) {
     return pasos;
 }
 
+// El intervalo se cuenta desde el último movimiento que SÍ se envió, no desde el último que llegó; si no, un
+// movimiento continuo nunca terminaría de esperar el intervalo y no se enviaría ninguno.
 bool LimitadorMovimiento::permitir(Reloj::time_point ahora) {
     if (hay_ultimo_ && ahora - ultimo_ < intervalo_) return false;
     ultimo_ = ahora;
