@@ -4,6 +4,28 @@
 -- para dibujar el diagrama en dbdiagram.io; si cambias una tabla aquí,
 -- actualiza también el DBML y el diccionario (README.md de esta carpeta).
 --
+-- Qué hace: define las 10 tablas de eventos.db, la base local de cada equipo, y
+-- carga los datos iniciales (configuración por defecto y dos modelos de ejemplo).
+-- Cómo funciona: las tablas se agrupan en inventario (equipo, modelo_periferico,
+-- limite_modelo, periferico), registro de uso (sesion, evento, incidente) y
+-- desgaste y alertas (contador_diario, alerta); configuracion va aparte. Todo usa
+-- IF NOT EXISTS e INSERT OR IGNORE, así que se puede ejecutar más de una vez sin
+-- duplicar nada.
+--
+-- Relaciones (cada campo que es llave foránea lleva "-- FK → tabla.columna" al costado):
+--   equipo 1──N periferico y sesion
+--   modelo_periferico 1──N periferico y limite_modelo
+--   sesion 1──N evento e incidente
+--   periferico 1──N evento, contador_diario y alerta
+--   configuracion no se relaciona con otras tablas.
+-- Ninguna llave foránea define ON DELETE: SQLite usa su comportamiento por defecto
+-- (NO ACTION) y rechaza borrar una fila que otra todavía referencia. El proyecto no
+-- borra filas; el esquema prevé marcar con activo = 0 los periféricos retirados.
+--
+-- Se relaciona con: lo ejecuta comun/repositorio.py al crear eventos.db, y ese
+-- módulo es el único que lee y escribe estas tablas (decisión de arquitectura 4);
+-- lo describen estructura-dbdiagramio (diagrama) y README.md (diccionario).
+--
 -- Reglas:
 --   * Las fechas se guardan como texto ISO 8601, por ejemplo 2026-10-09T08:15:30
 --   * Nunca se guarda qué tecla se pulsó en la tabla evento (RNF4)
@@ -12,6 +34,10 @@
 
 -- Estos PRAGMA deben ejecutarse en CADA conexión (el servicio y la interfaz).
 -- journal_mode = WAL se queda guardado en el archivo; los demás no.
+-- Por qué: WAL deja que el servicio escriba mientras la interfaz lee, porque son dos
+-- procesos sobre el mismo archivo; foreign_keys = ON hace que SQLite rechace una
+-- llave foránea que no existe (viene apagado por defecto); busy_timeout espera hasta
+-- 5 s si el otro proceso está escribiendo, en vez de fallar enseguida (RNF12).
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 PRAGMA busy_timeout = 5000;
@@ -37,7 +63,7 @@ CREATE TABLE IF NOT EXISTS modelo_periferico (
 -- Límite de vida útil por modelo y tipo de conteo (RF17, RNF9)
 CREATE TABLE IF NOT EXISTS limite_modelo (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    id_modelo    INTEGER NOT NULL REFERENCES modelo_periferico (id),
+    id_modelo    INTEGER NOT NULL REFERENCES modelo_periferico (id),  -- FK → modelo_periferico.id: el modelo al que se le fija este límite
     tipo_conteo  TEXT NOT NULL CHECK (tipo_conteo IN ('pulsacion_tecla', 'clic_boton', 'scroll_paso')),
     limite       INTEGER NOT NULL CHECK (limite > 0),
     UNIQUE (id_modelo, tipo_conteo)
@@ -46,8 +72,8 @@ CREATE TABLE IF NOT EXISTS limite_modelo (
 -- Cada teclado o mouse físico asociado a un equipo (RF18)
 CREATE TABLE IF NOT EXISTS periferico (
     id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-    id_modelo          INTEGER NOT NULL REFERENCES modelo_periferico (id),
-    id_equipo          INTEGER NOT NULL REFERENCES equipo (id),
+    id_modelo          INTEGER NOT NULL REFERENCES modelo_periferico (id),  -- FK → modelo_periferico.id: qué modelo es (se reconoce por VID/PID)
+    id_equipo          INTEGER NOT NULL REFERENCES equipo (id),             -- FK → equipo.id: en qué PC está conectado
     etiqueta           TEXT UNIQUE,         -- por ejemplo TEC-0042; NULL hasta que soporte la confirme
     estado_asignacion  TEXT NOT NULL DEFAULT 'confirmada' CHECK (estado_asignacion IN ('confirmada', 'por_confirmar')),
     activo             INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
@@ -60,7 +86,7 @@ CREATE TABLE IF NOT EXISTS periferico (
 -- Una sesión va desde que el servicio inicia hasta que el equipo se apaga (RF12)
 CREATE TABLE IF NOT EXISTS sesion (
     id                     INTEGER PRIMARY KEY AUTOINCREMENT,
-    id_equipo              INTEGER NOT NULL REFERENCES equipo (id),
+    id_equipo              INTEGER NOT NULL REFERENCES equipo (id),  -- FK → equipo.id: PC donde corrió el servicio
     inicio                 TEXT NOT NULL,
     fin                    TEXT,            -- NULL mientras la sesión está en curso
     tipo_cierre            TEXT CHECK (tipo_cierre IN ('normal', 'inesperado')),
@@ -72,8 +98,8 @@ CREATE INDEX IF NOT EXISTS idx_sesion_inicio ON sesion (inicio);
 -- No guarda qué tecla se pulsó, solo el tipo de evento y la hora (RNF4)
 CREATE TABLE IF NOT EXISTS evento (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    id_sesion      INTEGER NOT NULL REFERENCES sesion (id),
-    id_periferico  INTEGER NOT NULL REFERENCES periferico (id),
+    id_sesion      INTEGER NOT NULL REFERENCES sesion (id),       -- FK → sesion.id: sesión en la que ocurrió
+    id_periferico  INTEGER NOT NULL REFERENCES periferico (id),  -- FK → periferico.id: dispositivo que generó el evento
     tipo_evento    TEXT NOT NULL CHECK (tipo_evento IN
                    ('tecla_presionada', 'tecla_liberada', 'mouse_movimiento',
                     'clic_izquierdo', 'clic_derecho', 'scroll')),
@@ -88,7 +114,7 @@ CREATE INDEX IF NOT EXISTS idx_evento_fecha       ON evento (fecha_hora);
 -- Errores, eventos inválidos, caídas del capturador y apagados inesperados (RF9, RF10)
 CREATE TABLE IF NOT EXISTS incidente (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    id_sesion   INTEGER REFERENCES sesion (id),
+    id_sesion   INTEGER REFERENCES sesion (id),  -- FK → sesion.id (opcional, puede ser NULL): sesión en la que ocurrió
     tipo        TEXT NOT NULL CHECK (tipo IN
                 ('error_comunicacion', 'evento_invalido', 'caida_proceso',
                  'apagado_inesperado', 'error_envio')),
@@ -103,7 +129,7 @@ CREATE INDEX IF NOT EXISTS idx_incidente_fecha ON incidente (fecha_hora);
 -- Solo contadores agregados por día, sin orden ni secuencia (RF16, RNF4).
 -- El total acumulado de un elemento es la suma de sus días.
 CREATE TABLE IF NOT EXISTS contador_diario (
-    id_periferico  INTEGER NOT NULL REFERENCES periferico (id),
+    id_periferico  INTEGER NOT NULL REFERENCES periferico (id),  -- FK → periferico.id (y parte de la clave primaria): a qué periférico pertenece el conteo
     fecha          TEXT NOT NULL,           -- AAAA-MM-DD
     tipo_conteo    TEXT NOT NULL CHECK (tipo_conteo IN ('pulsacion_tecla', 'clic_boton', 'scroll_paso')),
     elemento       TEXT NOT NULL,           -- tecla, botón (izquierdo, derecho) o rueda
@@ -114,7 +140,7 @@ CREATE TABLE IF NOT EXISTS contador_diario (
 -- Una alerta por periférico y umbral: no se duplican aunque el programa se reinicie (RF19, RF20, RNF12)
 CREATE TABLE IF NOT EXISTS alerta (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-    id_periferico         INTEGER NOT NULL REFERENCES periferico (id),
+    id_periferico         INTEGER NOT NULL REFERENCES periferico (id),  -- FK → periferico.id: periférico que llegó al umbral
     umbral                INTEGER NOT NULL CHECK (umbral IN (90, 100)),
     estado                TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'enviada')),
     detalle               TEXT,             -- por ejemplo: E 91 %
