@@ -106,4 +106,18 @@ En las filas de los reportes, la columna "periférico" es la etiqueta de inventa
 
 `schema.sql` inserta dos modelos Logitech (K120, `046D:C31C`, y B100, `046D:C077`) con límites de ejemplo tomados de los mockups: 20 000 pulsaciones por tecla, 10 000 clics por botón y 15 000 pasos de scroll. **Son valores de ejemplo**: hay que comprobar cada VID/PID en el equipo real y cada límite con la ficha técnica del fabricante.
 
+## Base de ejemplo para desarrollar
+
+Para programar las pantallas, los reportes o el análisis no hace falta Windows ni un teclado real: este comando crea una base con varias semanas de uso inventado.
+
+```bash
+python -m pruebas.base_de_ejemplo ruta/ejemplo.db
+```
+
+Luego se abre con `Repositorio("ruta/ejemplo.db")`, o con la variable de entorno `CAPTURADOR_RUTA_DB=ruta/ejemplo.db` para que la interfaz la use. Trae un teclado K120 retirado (`TEC-0007`, al 100 %), un teclado K120 por confirmar al 92 % con una alerta pendiente, un mouse B100 confirmado (`MOU-0108`), un mouse de modelo desconocido sin límites, sesiones normales e inesperadas (la última en curso), incidentes de todos los tipos y eventos repartidos por día y hora. Opciones: `--hasta AAAA-MM-DD` (último día con datos, por defecto hoy), `--dias N` (de 10 a 365, por defecto 21) y `--semilla N` (la misma semilla da exactamente la misma base).
+
+- Es seguro volver a ejecutarlo: si el archivo ya es una base de ejemplo, se vuelve a crear. Si el archivo existe y **no** lo es (por ejemplo, la base real), no lo toca y avisa.
+- Los eventos son una muestra reducida; los contadores son los que reflejan el desgaste.
+- Los nombres de teclas, los correos (dominio `.invalid`) y las etiquetas son inventados, y no hay ninguna contraseña (RNF4, RNF10).
+
 Para ver el VID/PID de un teclado en Windows: `Get-PnpDevice -Class Keyboard | Select FriendlyName, InstanceId`.
