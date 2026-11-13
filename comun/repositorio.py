@@ -54,6 +54,10 @@ SQL_INSERTAR_PERIFERICO = """
     INSERT INTO periferico (id_modelo, id_equipo, estado_asignacion, activo, fecha_asignacion)
     VALUES (?, ?, 'por_confirmar', 1, ?)
 """
+# Retirar no borra nada: el periférico queda con `activo = 0` y su historial (eventos, contadores, alertas) se conserva.
+SQL_RETIRAR_PERIFERICO = """
+    UPDATE periferico SET activo = 0, fecha_retiro = ? WHERE id = ? AND activo = 1
+"""
 SQL_INSERTAR_EVENTO = """
     INSERT INTO evento (id_sesion, id_periferico, tipo_evento, fecha_hora, x, y)
     VALUES (?, ?, ?, ?, ?, ?)
@@ -129,8 +133,17 @@ SQL_LIMITES_DE_UN_PERIFERICO = """
     JOIN periferico p ON p.id_modelo = l.id_modelo
     WHERE p.id = ?
 """
+# Primero suma los días de cada elemento (una tecla, un botón o la rueda) y luego, por tipo de conteo, devuelve la
+# suma de todos los elementos y el mayor de ellos: el límite de `limite_modelo` se compara con ese mayor (RF17).
 SQL_TOTALES_POR_TIPO = """
-    SELECT tipo_conteo, SUM(cantidad) FROM contador_diario WHERE id_periferico = ? GROUP BY tipo_conteo
+    SELECT tipo_conteo, SUM(total_elemento), MAX(total_elemento)
+    FROM (
+        SELECT tipo_conteo, elemento, SUM(cantidad) AS total_elemento
+        FROM contador_diario
+        WHERE id_periferico = ?
+        GROUP BY tipo_conteo, elemento
+    )
+    GROUP BY tipo_conteo
 """
 
 # Las sesiones del día son las que EMPEZARON ese día: una sesión que cruza la medianoche cuenta en su día de inicio.
@@ -255,18 +268,24 @@ class Conteo:
 
 @dataclass(frozen=True, slots=True)
 class UsoDeConteo:
-    """Lo que lleva gastado un periférico en un tipo de conteo frente al límite de su modelo (RF16, RF17)."""
+    """El desgaste de un periférico en un tipo de conteo frente al límite de su modelo (RF16, RF17).
+
+    El límite es POR ELEMENTO: por ejemplo 20 000 pulsaciones por tecla, 10 000 clics por botón y 15 000 pasos de la
+    rueda. Por eso el porcentaje sale del elemento más gastado y no de la suma de todos: un teclado con 30 000
+    pulsaciones repartidas en 40 teclas no está agotado, pero una sola tecla con 19 000 sí está por agotarse.
+    """
 
     tipo_conteo: str  # pulsacion_tecla, clic_boton o scroll_paso
-    total: int  # suma de todos los días
-    limite: int | None  # None si el modelo no tiene límite para este tipo (por ejemplo, un modelo "desconocido")
+    total: int  # suma de todos los elementos y días; muestra el uso general, no sirve para el porcentaje
+    mayor_uso: int  # lo que lleva el elemento más gastado (su nombre no se incluye: eso lo da `totales_por_elemento`)
+    limite: int | None  # por elemento; None si el modelo no tiene límite para este tipo (por ejemplo, un modelo "desconocido")
 
     @property
     def porcentaje(self) -> float | None:
-        """Porcentaje de uso frente al límite (puede pasar de 100). None si no hay límite."""
+        """Porcentaje de uso del elemento más gastado frente al límite (puede pasar de 100). None si no hay límite."""
         if self.limite is None:
             return None
-        return self.total * 100 / self.limite
+        return self.mayor_uso * 100 / self.limite
 
 
 @dataclass(frozen=True, slots=True)
@@ -290,7 +309,10 @@ class ResumenPeriferico:
 
     @property
     def porcentaje_maximo(self) -> float | None:
-        """El mayor porcentaje de uso entre sus conteos con límite: el que decide qué tan cerca está de agotarse."""
+        """El mayor porcentaje entre sus tipos de conteo con límite: el que dice qué tan cerca está de agotarse.
+
+        Cada porcentaje es el del elemento más gastado de su tipo (ver `UsoDeConteo`).
+        """
         porcentajes = [uso.porcentaje for uso in self.usos if uso.porcentaje is not None]
         return max(porcentajes) if porcentajes else None
 
@@ -545,6 +567,18 @@ class Repositorio:
             if cursor.rowcount == 0:
                 raise LookupError(f"no existe el periférico {id_periferico}")
 
+    def retirar_periferico(self, id_periferico: int, fecha_retiro: str) -> None:
+        """Marca un periférico como retirado: `activo = 0` y su fecha de retiro (RF18).
+
+        No borra nada (el esquema no define ON DELETE): el historial queda para los reportes. Un retirado deja libre su
+        lugar, así que si el mismo modelo se conecta otra vez en ese equipo se crea un periférico nuevo.
+        Lanza LookupError si el periférico no existe o ya estaba retirado.
+        """
+        with self._candado, self._conexion:
+            cursor = self._conexion.execute(SQL_RETIRAR_PERIFERICO, (fecha_retiro, id_periferico))
+            if cursor.rowcount == 0:
+                raise LookupError(f"no existe el periférico activo {id_periferico}")
+
     # ---------- Sesiones ----------
 
     def abrir_sesion(self, id_equipo: int, inicio: str) -> int:
@@ -697,15 +731,16 @@ class Repositorio:
         """
         id_periferico = _entero(fila[0])
         limites = {str(f[0]): _entero(f[1]) for f in self._todas(SQL_LIMITES_DE_UN_MODELO, (_entero(fila[2]),))}
-        totales = {str(f[0]): _entero(f[1]) for f in self._todas(SQL_TOTALES_POR_TIPO, (id_periferico,))}
-        usos = tuple(
-            UsoDeConteo(tipo, totales.get(tipo, 0), limites.get(tipo)) for tipo in sorted(limites.keys() | totales.keys())
-        )
+        totales = {str(f[0]): (_entero(f[1]), _entero(f[2])) for f in self._todas(SQL_TOTALES_POR_TIPO, (id_periferico,))}
+        usos: list[UsoDeConteo] = []
+        for tipo in sorted(limites.keys() | totales.keys()):
+            total, mayor_uso = totales.get(tipo, (0, 0))
+            usos.append(UsoDeConteo(tipo, total, mayor_uso, limites.get(tipo)))
         return ResumenPeriferico(
             id=id_periferico, id_equipo=_entero(fila[1]), id_modelo=_entero(fila[2]), etiqueta=_texto_o_none(fila[3]),
             estado_asignacion=str(fila[4]), activo=bool(_entero(fila[5])), fecha_asignacion=str(fila[6]),
             fecha_retiro=_texto_o_none(fila[7]), fabricante=str(fila[8]), modelo=str(fila[9]), tipo=str(fila[10]),
-            vid=str(fila[11]), pid=str(fila[12]), usos=usos,
+            vid=str(fila[11]), pid=str(fila[12]), usos=tuple(usos),
         )
 
     def limites_del_periferico(self, id_periferico: int) -> dict[str, int]:

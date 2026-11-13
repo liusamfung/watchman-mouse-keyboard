@@ -377,3 +377,26 @@ def test_dos_repositorios_sobre_el_mismo_archivo_se_ven_entre_si(ruta_db: Path, 
         assert interfaz.total_acumulado(periferico, "pulsacion_tecla", "E") == 9
         interfaz.escribir_configuracion("orden_captura", "detener")   # la interfaz deja una orden
         assert repo.leer_configuracion("orden_captura") == "detener"  # el servicio la lee
+
+
+def test_retirar_un_periferico_lo_marca_inactivo_y_deja_libre_su_lugar(ruta_db: Path, repo: Repositorio) -> None:
+    equipo, periferico, _ = preparar_sesion_y_periferico(repo)
+    modelo = repo.obtener_o_crear_modelo("046D", "C31C", "teclado")
+
+    repo.retirar_periferico(periferico, "2026-11-05T18:00:00")
+
+    assert consultar(ruta_db, "SELECT activo, fecha_retiro FROM periferico WHERE id = ?", (periferico,)) == [
+        (0, "2026-11-05T18:00:00")
+    ]
+    nuevo, creado = repo.obtener_o_crear_periferico(equipo, modelo, "2026-11-06T08:00:00")   # el mismo modelo, otra unidad
+    assert creado and nuevo != periferico
+
+
+def test_no_se_puede_retirar_dos_veces_ni_uno_que_no_existe(repo: Repositorio) -> None:
+    _, periferico, _ = preparar_sesion_y_periferico(repo)
+    repo.retirar_periferico(periferico, "2026-11-05T18:00:00")
+
+    with pytest.raises(LookupError):
+        repo.retirar_periferico(periferico, "2026-11-06T18:00:00")
+    with pytest.raises(LookupError):
+        repo.retirar_periferico(999, "2026-11-06T18:00:00")
