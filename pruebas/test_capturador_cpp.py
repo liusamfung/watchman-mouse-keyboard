@@ -4,7 +4,8 @@ Compilan el programa con el compilador del sistema y comprueban que lo que escri
 el contrato, usando el validador real de Python. La captura con Raw Input solo se prueba en Windows.
 
 Con qué datos: compila `capturador/src` con las advertencias estrictas del CMakeLists.txt y con los
-detectores de errores de memoria (address y undefined), ejecuta `captura --simulado` con distintas
+detectores de errores de memoria (address y undefined; se omiten si el compilador no los trae, como MinGW-w64 en
+Windows), ejecuta `captura --simulado` con distintas
 semillas y revisa cada línea que escribe con `validar_linea`. También corre `pruebas_unitarias.cpp`, comprueba
 que el gestor de Python lee ese capturador y que el código de Raw Input compila para Windows con MinGW-w64
 (solo compila: no se ejecuta fuera de Windows). Si no hay compilador, las pruebas se omiten.
@@ -12,10 +13,12 @@ que el gestor de Python lee ese capturador y que el código de Raw Input compila
 Se relaciona con: usa `capturador/src/*.cpp`, `capturador/pruebas/pruebas_unitarias.cpp`,
 `servicio/validador.py` y `servicio/gestor_subproceso.py` · lo ejecuta pytest.
 """
+import functools
 import json
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import cast
 
@@ -39,7 +42,32 @@ BANDERAS_WINDOWS = ["-std=c++17", "-Wall", "-Wextra", "-Wpedantic", "-Werror",
                     "-static", "-static-libgcc", "-static-libstdc++"]
 PROGRAMA_WINDOWS = [*PROGRAMA, "raw_input_windows.cpp"]
 
+# En Windows el programa nativo incluye la captura real (principal.cpp la llama), que necesita user32.
+EN_WINDOWS = sys.platform == "win32"
+FUENTES_PROGRAMA = PROGRAMA_WINDOWS if EN_WINDOWS else PROGRAMA
+BIBLIOTECAS_PROGRAMA = ["-luser32"] if EN_WINDOWS else []
+
 TIPOS = {"tecla_presionada", "tecla_liberada", "mouse_movimiento", "clic_izquierdo", "clic_derecho", "scroll"}
+
+
+@functools.cache
+def banderas_del_sistema(compilador: str) -> list[str]:
+    """Las banderas de BANDERAS, sin los detectores de memoria si el compilador no los trae.
+
+    MinGW-w64 en Windows (por ejemplo WinLibs) no incluye las bibliotecas asan y ubsan: sin esta
+    comprobación, el enlazador falla con `cannot find -lasan` y ninguna prueba de C++ podría correr.
+    Se prueba compilando un programa mínimo; el resultado se guarda para no repetirlo.
+    """
+    with tempfile.TemporaryDirectory() as carpeta:
+        minimo = Path(carpeta) / "minimo.cpp"
+        _ = minimo.write_text("int main() { return 0; }\n", encoding="utf-8")
+        resultado = subprocess.run(
+            [compilador, "-fsanitize=address,undefined", str(minimo), "-o", str(Path(carpeta) / "minimo")],
+            capture_output=True, timeout=120, check=False,
+        )
+    if resultado.returncode == 0:
+        return BANDERAS
+    return [bandera for bandera in BANDERAS if not bandera.startswith("-fsanitize")]
 
 
 def compilar(
@@ -51,10 +79,11 @@ def compilar(
 ) -> Path:
     """Compila `fuentes` con `compilador` y devuelve la ruta del ejecutable. Si falla, la prueba muestra el error.
 
-    banderas: por defecto las estrictas de BANDERAS; bibliotecas: opciones extra para el enlazador.
+    banderas: por defecto las estrictas de BANDERAS (sin los detectores de memoria si el compilador no los trae);
+    bibliotecas: opciones extra para el enlazador.
     """
     resultado = subprocess.run(
-        [compilador, *(BANDERAS if banderas is None else banderas), f"-I{FUENTES}",
+        [compilador, *(banderas_del_sistema(compilador) if banderas is None else banderas), f"-I{FUENTES}",
          *map(str, fuentes), *(bibliotecas or []), "-o", str(salida)],
         capture_output=True, text=True, timeout=300, check=False,
     )
@@ -74,7 +103,8 @@ def compilador() -> str:
 @pytest.fixture(scope="session")
 def capturador(compilador: str, tmp_path_factory: pytest.TempPathFactory) -> Path:
     """El programa completo compilado una sola vez por sesión (compilar tarda unos segundos)."""
-    return compilar(compilador, [FUENTES / archivo for archivo in PROGRAMA], tmp_path_factory.mktemp("cpp") / "captura")
+    return compilar(compilador, [FUENTES / archivo for archivo in FUENTES_PROGRAMA],
+                    tmp_path_factory.mktemp("cpp") / "captura", bibliotecas=BIBLIOTECAS_PROGRAMA)
 
 
 @pytest.fixture(scope="session")
