@@ -153,6 +153,12 @@ SQL_LISTAR_SESIONES = """
     WHERE (? IS NULL OR id_equipo = ?) AND (? IS NULL OR inicio >= ?) AND (? IS NULL OR inicio < ?)
     ORDER BY inicio DESC, id DESC
 """
+SQL_ULTIMA_SESION = """
+    SELECT id, id_equipo, inicio, fin, tipo_cierre, seg_actividad_teclado, seg_actividad_mouse
+    FROM sesion
+    ORDER BY inicio DESC, id DESC
+    LIMIT 1
+"""
 SQL_ACTIVIDAD_DE_SESIONES = """
     SELECT COALESCE(SUM(seg_actividad_teclado), 0), COALESCE(SUM(seg_actividad_mouse), 0)
     FROM sesion
@@ -703,6 +709,13 @@ class Repositorio:
         with self._candado, self._conexion:
             _ = self._conexion.execute(SQL_ESCRIBIR_CONFIGURACION, (clave, valor))
 
+    # ---------- Lecturas: equipos ----------
+
+    def listar_equipos(self) -> list[tuple[int, str]]:
+        """Los equipos como (id, nombre), por orden de creación. Cada base de datos es de una sola PC, así que suele ser uno."""
+        with self._candado:
+            return [(_entero(f[0]), str(f[1])) for f in self._todas("SELECT id, nombre FROM equipo ORDER BY id")]
+
     # ---------- Lecturas: periféricos y límites ----------
 
     def listar_perifericos(self, id_equipo: int | None = None, incluir_retirados: bool = True) -> list[ResumenPeriferico]:
@@ -765,6 +778,17 @@ class Repositorio:
             )
             for f in filas
         ]
+
+    def ultima_sesion(self) -> FilaSesion | None:
+        """La sesión más reciente, o None si todavía no hay ninguna. Sirve para el encabezado de la interfaz (RF12)."""
+        with self._candado:
+            fila = self._uno(SQL_ULTIMA_SESION)
+        if fila is None:
+            return None
+        return FilaSesion(
+            id=_entero(fila[0]), id_equipo=_entero(fila[1]), inicio=str(fila[2]), fin=_texto_o_none(fila[3]),
+            tipo_cierre=_texto_o_none(fila[4]), seg_actividad_teclado=_entero(fila[5]), seg_actividad_mouse=_entero(fila[6]),
+        )
 
     def actividad_del_dia(self, dia: str, id_equipo: int | None = None) -> tuple[int, int]:
         """(segundos de teclado, segundos de mouse): la suma de las sesiones que empezaron ese día (RF12).

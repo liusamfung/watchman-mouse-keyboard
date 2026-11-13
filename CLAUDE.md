@@ -61,6 +61,7 @@ C++ (Raw Input) ──stdout JSON──▶ Servicio Python ──▶ SQLite (eve
 | DBML para dbdiagram.io | `docs/base-de-datos/estructura-dbdiagramio` (conviene renombrar a `.dbml`) |
 | Esquema real de SQLite | `docs/base-de-datos/schema.sql` |
 | Mockups de las pantallas P01–P08 | `docs/mockups/` (ver su `README.md`) |
+| Cómo programar una pantalla de la interfaz (estructura, reglas y ejemplo) | `docs/interfaz.md` |
 
 Lee el documento que corresponda **antes** de implementar esa parte. El esquema de SQLite de `schema.sql` es la fuente de verdad de las tablas; si cambias una tabla, actualiza también el DBML y el diccionario.
 
@@ -69,12 +70,12 @@ Lee el documento que corresponda **antes** de implementar esa parte. El esquema 
 ```
 capturador/        C++ (Raw Input). CMakeLists.txt o proyecto de Visual Studio
 servicio/          Python: gestor_subproceso, validador, sesion, contador, evaluador, notificador, control
-ui/                Python + Tkinter: una clase por pantalla P01–P08
+ui/                Python + Tkinter: una clase por pantalla P01–P08, cada una en su archivo de `ui/pantallas/` (ver `docs/interfaz.md`)
 comun/             Python: repositorio SQLite, configuración, constantes (compartido por servicio e interfaz)
 pruebas/           pytest. Incluye `capturador_simulado.py`, que imita al capturador de C++ para probar el servicio sin Windows
 ```
 
-Para las pruebas: `python3 -m venv .venv`, `.venv/bin/pip install -r requirements-desarrollo.txt` y `.venv/bin/python -m pytest pruebas`. En Windows el ejecutable está en `.venv\Scripts\`. Las pruebas de Python también compilan el capturador de C++ (si hay un compilador) y lo revisan en modo simulado; ver `capturador/README.md`.
+Para las pruebas: `python3 -m venv .venv`, `.venv/bin/pip install -r requirements-desarrollo.txt` y `.venv/bin/python -m pytest pruebas`. En Windows el ejecutable está en `.venv\Scripts\`. Las pruebas de Python también compilan el capturador de C++ (si hay un compilador) y lo revisan en modo simulado; ver `capturador/README.md`. Las pruebas de la interfaz que abren una ventana (`pruebas/test_ui_aplicacion.py`) necesitan Tkinter y se omiten si Python no lo trae (el Python de Homebrew sin `python-tk`); en Windows, con el Python de python.org, corren siempre. **Windows es el sistema de destino:** todo lo que se programa en otro sistema se confirma con `docs/pruebas-en-windows.md`.
 
 Revisión de tipos: el equipo usa **basedpyright** (configuración en `pyproject.toml`, la misma desde el editor y desde la terminal con `.venv/bin/basedpyright`). El código nuevo de Python debe quedar con tipos en los parámetros y sin errores ni advertencias.
 
