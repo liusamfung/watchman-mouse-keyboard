@@ -69,6 +69,8 @@ Las pantallas, los reportes y el análisis no escriben SQL: piden lo que necesit
 
 | Método | Devuelve | Lo usa |
 |---|---|---|
+| `listar_equipos()` | `list[tuple[int, str]]` con (id, nombre) | encabezado de la interfaz |
+| `ultima_sesion()` | la `FilaSesion` más reciente o `None` | encabezado de la interfaz |
 | `listar_perifericos(id_equipo=None, incluir_retirados=True)` | `list[ResumenPeriferico]` con modelo, etiqueta, estado, uso y porcentaje frente al límite | P01, P02 |
 | `obtener_periferico(id)` | un `ResumenPeriferico` o `None` | P03 |
 | `totales_por_elemento(id_periferico, tipo_conteo)` | `dict` con el total de cada tecla, botón o rueda | P03 (teclas con mayor desgaste) |

@@ -16,6 +16,18 @@ exclude = [
     "docs",
 ]
 
+# Tkinter (ui/): casi todos los métodos de los widgets (configure, grid, columnconfigure, bind…) devuelven un valor que nadie usa.
+# Exigir `_ =` en cada una de esas líneas llenaría de ruido las pantallas y haría más difícil leerlas. Por eso, solo en ui/, se
+# relaja la regla de "resultado sin usar". También se relaja la de "variable de instancia sin inicializar": cada pantalla crea sus
+# widgets en `construir`, un gancho que llama la clase base (como `setUp` en las pruebas), y no en `__init__`. El resto de las
+# reglas (tipos, valores desconocidos, @override…) siguen igual de estrictas.
+# `extraPaths` deja importar `comun` desde ui/ (la raíz de este entorno es ui/, no la del proyecto).
+[[tool.basedpyright.executionEnvironments]]
+root = "ui"
+extraPaths = ["."]
+reportUnusedCallResult = "none"
+reportUninitializedInstanceVariable = "none"
+
 [tool.pytest.ini_options]
 # "pytest" sin argumentos busca en pruebas/ y deja importar los paquetes de la raíz (servicio, comun).
 testpaths = ["pruebas"]

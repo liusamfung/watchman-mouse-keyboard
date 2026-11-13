@@ -248,6 +248,25 @@ def test_un_dia_que_no_es_fecha_se_rechaza(repo: Repositorio) -> None:
         _ = repo.actividad_del_dia("02/11/2026")
 
 
+def test_listar_equipos_devuelve_id_y_nombre_por_orden_de_creacion(repo: Repositorio) -> None:
+    assert repo.listar_equipos() == []
+
+    primero = repo.obtener_o_crear_equipo("PC-PRUEBA-01")
+    segundo = repo.obtener_o_crear_equipo("PC-PRUEBA-02")
+
+    assert repo.listar_equipos() == [(primero, "PC-PRUEBA-01"), (segundo, "PC-PRUEBA-02")]
+
+
+def test_la_ultima_sesion_es_la_que_empezo_mas_tarde_y_sin_sesiones_es_none(repo: Repositorio) -> None:
+    assert repo.ultima_sesion() is None
+
+    _, (_, en_curso, nocturna, martes) = preparar_sesiones(repo)
+
+    ultima = repo.ultima_sesion()
+    assert ultima is not None and ultima.id == martes and ultima.en_curso
+    assert ultima.id not in (en_curso, nocturna)
+
+
 def test_incidentes_recientes_trae_los_ultimos_del_mas_nuevo_al_mas_viejo(repo: Repositorio) -> None:
     equipo = repo.obtener_o_crear_equipo("PC-PRUEBA-01")
     sesion = repo.abrir_sesion(equipo, "2026-11-02T08:00:00")
