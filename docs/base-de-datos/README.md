@@ -87,6 +87,8 @@ Las pantallas, los reportes y el análisis no escriben SQL: piden lo que necesit
 | `filas_de_contadores(desde, hasta)` | filas: fecha, periférico, tipo de conteo, elemento, cantidad | reporte de contadores |
 | `filas_de_alertas(desde, hasta)` | filas: periférico, umbral, estado, intentos, fecha de creación, fecha de envío (el rango aplica a la creación) | reporte de alertas |
 
+**El límite es por elemento** (20 000 pulsaciones por tecla, 10 000 clics por botón, 15 000 pasos de la rueda). Por eso el porcentaje de `UsoDeConteo` y de `ResumenPeriferico.porcentaje_maximo` sale del elemento más gastado (`mayor_uso`) y no de la suma de todos (`total`): una tecla a punto de agotarse debe verse aunque el teclado entero tenga muchas pulsaciones repartidas.
+
 En las filas de los reportes, la columna "periférico" es la etiqueta de inventario o, si todavía no la tiene, `ID n`. Las horas de eventos dejan fuera las teclas liberadas por defecto: cada pulsación genera dos eventos (presionada y liberada) y contarlos doble haría pesar más al teclado que al mouse.
 
 ## Decisiones de diseño

@@ -75,6 +75,7 @@ def test_un_periferico_muestra_su_desgaste_frente_al_limite_de_su_modelo(repo: R
     repo.sumar_a_contadores([
         Conteo(teclado, "2026-11-02", "pulsacion_tecla", "Q", 3000),
         Conteo(teclado, "2026-11-03", "pulsacion_tecla", "W", 2000),
+        Conteo(teclado, "2026-11-03", "pulsacion_tecla", "Q", 500),   # la misma tecla, otro día: se suma
     ])
 
     resumen = repo.obtener_periferico(teclado)
@@ -82,9 +83,22 @@ def test_un_periferico_muestra_su_desgaste_frente_al_limite_de_su_modelo(repo: R
     assert resumen is not None
     assert (resumen.fabricante, resumen.modelo, resumen.tipo, resumen.vid, resumen.pid) == ("Logitech", "K120", "teclado", "046D", "C31C")
     assert (resumen.etiqueta, resumen.estado_asignacion, resumen.activo) == (None, "por_confirmar", True)
-    assert resumen.usos == (UsoDeConteo("pulsacion_tecla", 5000, 20000),)
-    assert resumen.usos[0].porcentaje == 25.0
-    assert resumen.porcentaje_maximo == 25.0
+    # El límite es por tecla: la más gastada lleva 3 500 de 20 000 (17,5 %), aunque entre todas sumen 5 500.
+    assert resumen.usos == (UsoDeConteo("pulsacion_tecla", total=5500, mayor_uso=3500, limite=20000),)
+    assert resumen.usos[0].porcentaje == 17.5
+    assert resumen.porcentaje_maximo == 17.5
+
+
+def test_el_porcentaje_sale_de_la_tecla_mas_gastada_y_no_de_la_suma_de_todas(repo: Repositorio) -> None:
+    """Caso del error que se corrigió: 40 teclas con 1 000 pulsaciones cada una suman más que el límite de una tecla."""
+    _, teclado = crear_teclado(repo)
+    repo.sumar_a_contadores([Conteo(teclado, "2026-11-02", "pulsacion_tecla", f"TECLA_{n:02d}", 1000) for n in range(40)])
+
+    resumen = repo.obtener_periferico(teclado)
+
+    assert resumen is not None
+    assert resumen.usos == (UsoDeConteo("pulsacion_tecla", total=40000, mayor_uso=1000, limite=20000),)
+    assert resumen.porcentaje_maximo == 5.0   # y no 200 %: ninguna tecla está cerca de agotarse
 
 
 def test_un_mouse_lista_todos_sus_limites_aunque_no_tenga_conteos_de_alguno(repo: Repositorio) -> None:
@@ -95,7 +109,10 @@ def test_un_mouse_lista_todos_sus_limites_aunque_no_tenga_conteos_de_alguno(repo
     resumen = repo.obtener_periferico(mouse)
 
     assert resumen is not None
-    assert resumen.usos == (UsoDeConteo("clic_boton", 100, 10000), UsoDeConteo("scroll_paso", 0, 15000))
+    assert resumen.usos == (
+        UsoDeConteo("clic_boton", total=100, mayor_uso=100, limite=10000),
+        UsoDeConteo("scroll_paso", total=0, mayor_uso=0, limite=15000),
+    )
     assert resumen.porcentaje_maximo == 1.0
 
 
@@ -111,7 +128,7 @@ def test_un_modelo_sin_limites_muestra_su_desgaste_sin_porcentaje(repo: Reposito
     repo.sumar_a_contadores([Conteo(desconocido, "2026-11-02", "clic_boton", "izquierdo", 7)])
     con_uso = repo.obtener_periferico(desconocido)
     assert con_uso is not None
-    assert con_uso.usos == (UsoDeConteo("clic_boton", 7, None),)
+    assert con_uso.usos == (UsoDeConteo("clic_boton", total=7, mayor_uso=7, limite=None),)
     assert con_uso.usos[0].porcentaje is None
     assert con_uso.porcentaje_maximo is None
 
