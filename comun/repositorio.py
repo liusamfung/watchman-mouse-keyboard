@@ -54,6 +54,10 @@ SQL_INSERTAR_PERIFERICO = """
     INSERT INTO periferico (id_modelo, id_equipo, estado_asignacion, activo, fecha_asignacion)
     VALUES (?, ?, 'por_confirmar', 1, ?)
 """
+# Retirar no borra nada: el periférico queda con `activo = 0` y su historial (eventos, contadores, alertas) se conserva.
+SQL_RETIRAR_PERIFERICO = """
+    UPDATE periferico SET activo = 0, fecha_retiro = ? WHERE id = ? AND activo = 1
+"""
 SQL_INSERTAR_EVENTO = """
     INSERT INTO evento (id_sesion, id_periferico, tipo_evento, fecha_hora, x, y)
     VALUES (?, ?, ?, ?, ?, ?)
@@ -562,6 +566,18 @@ class Repositorio:
                 raise EtiquetaDuplicada(f"la etiqueta {limpia} ya está asignada a otro periférico") from error
             if cursor.rowcount == 0:
                 raise LookupError(f"no existe el periférico {id_periferico}")
+
+    def retirar_periferico(self, id_periferico: int, fecha_retiro: str) -> None:
+        """Marca un periférico como retirado: `activo = 0` y su fecha de retiro (RF18).
+
+        No borra nada (el esquema no define ON DELETE): el historial queda para los reportes. Un retirado deja libre su
+        lugar, así que si el mismo modelo se conecta otra vez en ese equipo se crea un periférico nuevo.
+        Lanza LookupError si el periférico no existe o ya estaba retirado.
+        """
+        with self._candado, self._conexion:
+            cursor = self._conexion.execute(SQL_RETIRAR_PERIFERICO, (fecha_retiro, id_periferico))
+            if cursor.rowcount == 0:
+                raise LookupError(f"no existe el periférico activo {id_periferico}")
 
     # ---------- Sesiones ----------
 
