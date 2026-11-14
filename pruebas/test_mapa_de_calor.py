@@ -56,6 +56,11 @@ def test_lista_vacia_da_una_matriz_de_ceros() -> None:
     assert valor_maximo(matriz) == 0
 
 
+def test_valor_maximo_de_una_matriz_vacia_es_cero() -> None:
+    """La promesa de la función ("0 si está vacía") se prueba con `[]`: una matriz de ceros no la ejercita."""
+    assert valor_maximo([]) == 0
+
+
 def test_la_matriz_siempre_es_de_7_por_24() -> None:
     matriz = calcular_matriz(["2026-11-04T12:00:00"])
     assert len(matriz) == 7
