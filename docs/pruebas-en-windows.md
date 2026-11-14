@@ -112,8 +112,8 @@ py -m venv .venv
 
 | # | Qué mirar | Resultado esperado | ¿Pasó? |
 |---|---|---|---|
-| E1 | Última línea de `pytest` | `passed` y **ningún** `failed` ni `error`. Hoy son 271 pruebas: con un compilador de C++ pasan las 271; sin él (lo normal en Windows), `260 passed, 11 skipped`. Anota el número exacto | |
-| E2 | Con un compilador moderno (por ejemplo `winget install BrechtSanders.WinLibs.POSIX.UCRT`, gcc 16) | Pasan 270 y se omite 1 (la de "sin modo simulado", que solo aplica fuera de Windows). Un MinGW viejo (mingw.org, gcc 6) no soporta C++17 y debe quitarse del PATH. Sin sanitizers: WinLibs no trae `asan` ni `ubsan` y las pruebas los omiten solas | |
+| E1 | Última línea de `pytest` | `passed` y **ningún** `failed` ni `error`. Hoy son 304 pruebas: con un compilador de C++ pasan las 304; sin él (lo normal en Windows), `293 passed, 11 skipped`. Anota el número exacto | |
+| E2 | Con un compilador moderno (por ejemplo `winget install BrechtSanders.WinLibs.POSIX.UCRT`, gcc 16) | Pasan 303 y se omite 1 (la de "sin modo simulado", que solo aplica fuera de Windows). Un MinGW viejo (mingw.org, gcc 6) no soporta C++17 y debe quitarse del PATH. Sin sanitizers: WinLibs no trae `asan` ni `ubsan` y las pruebas los omiten solas | |
 | E2b | Las pruebas omitidas (`skipped`) | Solo las de C++ (`test_capturador_cpp.py`), si no hay `g++` o `clang++` en el PATH. Ninguna de `test_ui_aplicacion.py` debe aparecer como omitida: si aparece "este Python no trae Tk", reinstala Python marcando "tcl/tk and IDLE" | |
 | E3 | `basedpyright` | `0 errors, 0 warnings, 0 notes` | |
 
