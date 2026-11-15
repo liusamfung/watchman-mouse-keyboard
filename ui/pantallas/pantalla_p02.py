@@ -2,8 +2,8 @@
 
 Qué muestra: la lista de teclados y mouse registrados en el equipo, incluidos los retirados, con su desgaste frente al límite
 que garantiza el fabricante y su estado (normal, alerta pendiente o enviada, retirado). Arriba hay un filtro por tipo y una
-casilla para ocultar los retirados; abajo, el botón "Ver detalle" (abre P03). Doble clic o Enter sobre una fila también abre el
-detalle.
+casilla para ocultar los retirados; abajo, los botones "Confirmar etiqueta…" (abre el diálogo del issue #23) y "Ver detalle"
+(abre P03). Doble clic o Enter sobre una fila también abre el detalle.
 
 Cómo funciona: `al_mostrar` pide al repositorio los periféricos y las alertas, y las funciones puras de este archivo
 (`texto_modelo`, `texto_vida_util`, `texto_estado`, `filas_de_perifericos`…) arman los textos de cada fila. Esas funciones no
@@ -15,7 +15,7 @@ la tecla o botón más gastado, no el de la suma de todos (ver `docs/base-de-dat
 Mockup: `docs/mockups/P02_Perifericos.png`. Guía: `docs/interfaz.md`.
 
 Se relaciona con: usa `ui/pantalla_base.py`, `ui/componentes.py` (`Tabla`), `ui/formato.py` y, por el contexto, el repositorio
-(`listar_perifericos`, `listar_alertas`) · la registra `ui/registro.py`, la usa P03
+(`listar_perifericos`, `listar_alertas`); abre `ui/pantallas/dialogo_etiqueta.py` · la registra `ui/registro.py`, la usa P03
 (sus funciones de texto) y la prueba `pruebas/test_pantalla_p02.py`.
 """
 import tkinter as tk
@@ -27,6 +27,7 @@ from comun.repositorio import FilaAlerta, ResumenPeriferico, UsoDeConteo
 from ui.componentes import ETIQUETA_ALERTA, ETIQUETA_RETIRADO, Columna, FilaDeTabla, Tabla
 from ui.formato import fecha_legible, porcentaje
 from ui.pantalla_base import Pantalla
+from ui.pantallas.dialogo_etiqueta import DialogoEtiqueta
 
 TODOS = "Todos"
 # Lo que se ve en el filtro de tipo y el valor de `ResumenPeriferico.tipo` que le corresponde (None: sin filtro).
@@ -154,11 +155,16 @@ def filas_de_perifericos(perifericos: Iterable[ResumenPeriferico], alertas: Sequ
     return filas
 
 
+def se_puede_confirmar(periferico: ResumenPeriferico | None) -> bool:
+    """True si tiene sentido confirmar la etiqueta: un periférico activo que sigue "por confirmar" (RF18)."""
+    return periferico is not None and periferico.activo and periferico.estado_asignacion == "por_confirmar"
+
+
 # ---------- La pantalla ----------
 
 
 class PantallaP02(Pantalla):
-    """Periféricos: lista de periféricos con su desgaste frente al límite, incluidos los retirados."""
+    """Periféricos: lista de periféricos con su desgaste frente al límite, incluidos los retirados, y confirmación de etiqueta."""
 
     TITULO: ClassVar[str] = "Periféricos"
     SUBTITULO: ClassVar[str] = "Teclados y mouse registrados en este equipo, con su desgaste frente al límite del fabricante."
@@ -193,7 +199,7 @@ class PantallaP02(Pantalla):
         ]
         self.tabla: Tabla = Tabla(self, columnas, alto=10, al_elegir=lambda _id: self._actualizar_botones())
         self.tabla.grid(row=1, column=0, sticky="nsew")
-        # Doble clic o Enter sobre una fila abren el detalle; un solo clic solo la elige (y activa "Ver detalle").
+        # Doble clic o Enter sobre una fila abren el detalle; un solo clic solo la elige (para poder usar "Confirmar etiqueta…").
         self.tabla.arbol.bind("<Double-1>", lambda _evento: self.ver_detalle())
         self.tabla.arbol.bind("<Return>", lambda _evento: self.ver_detalle())
 
@@ -202,6 +208,8 @@ class PantallaP02(Pantalla):
 
         botones = ttk.Frame(self)
         botones.grid(row=3, column=0, sticky="e", pady=(12, 0))
+        self.boton_confirmar: ttk.Button = ttk.Button(botones, text="Confirmar etiqueta…", command=self.confirmar_etiqueta)
+        self.boton_confirmar.pack(side="left", padx=(0, 8))
         self.boton_detalle: ttk.Button = ttk.Button(botones, text="Ver detalle", command=self.ver_detalle)
         self.boton_detalle.pack(side="left")
 
@@ -214,7 +222,7 @@ class PantallaP02(Pantalla):
     def refrescar(self, elegir: str | None = None) -> None:
         """Vuelve a pedir los periféricos y las alertas y llena la tabla con el filtro actual.
 
-        elegir: id de la fila que queda elegida; por defecto, la que estaba elegida.
+        elegir: id de la fila que queda elegida (por ejemplo, la que se acaba de confirmar); por defecto, la que estaba elegida.
         """
         elegida = elegir or self.tabla.elegida()
         perifericos = filtrar_por_tipo(self.repo.listar_perifericos(incluir_retirados=self.ver_retirados.get()), self.tipo.get())
@@ -232,11 +240,22 @@ class PantallaP02(Pantalla):
         return self._perifericos.get(id_fila) if id_fila is not None else None
 
     def _actualizar_botones(self) -> None:
-        """Activa "Ver detalle" solo si hay una fila elegida."""
-        self.boton_detalle.state(["!disabled"] if self.elegido() is not None else ["disabled"])
+        """Activa "Ver detalle" si hay una fila elegida y "Confirmar etiqueta…" si además está por confirmar."""
+        periferico = self.elegido()
+        self.boton_detalle.state(["!disabled"] if periferico is not None else ["disabled"])
+        self.boton_confirmar.state(["!disabled"] if se_puede_confirmar(periferico) else ["disabled"])
 
     def ver_detalle(self) -> None:
         """Abre P03 con el periférico elegido. Sin fila elegida, no hace nada."""
         periferico = self.elegido()
         if periferico is not None:
             self.contexto.ir_a("p03", id_periferico=periferico.id)
+
+    def confirmar_etiqueta(self) -> None:
+        """Abre el diálogo de etiqueta (RF18) y, si se confirmó, refresca la lista dejando elegida la misma fila."""
+        periferico = self.elegido()
+        if not se_puede_confirmar(periferico) or periferico is None:
+            return
+        dialogo = DialogoEtiqueta(self, self.repo, periferico)
+        if dialogo.esperar():
+            self.refrescar(elegir=str(periferico.id))
