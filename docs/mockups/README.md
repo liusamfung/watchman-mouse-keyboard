@@ -15,6 +15,7 @@ Ocho pantallas para **Soporte TI** (RF23). El trabajador nunca ve ninguna. Está
 
 Notas:
 
+- En **P01** el mockup muestra `(tecla más usada: E)` junto al porcentaje del teclado. La pantalla real no lo muestra: el panel solo tiene totales y porcentajes por periférico (RNF4), y la tecla más gastada se ve en **P03** (Ver detalle). Además de lo que dibuja el mockup, P01 dice `Servicio detenido` si el servicio no está en marcha y `Deteniendo…` o `Iniciando…` mientras el servicio cumple la orden.
 - Los datos que aparecen (TEC-0042, MOU-0108, PC-CONTAB-014, `soporte.ti@empresa.com`, etc.) son **de ejemplo**.
 - El subtítulo de **P04** dice "desde que se enciende el equipo". El texto correcto es **"desde que se inicia sesión en Windows hasta que se apaga el equipo"**; corrígelo al implementar la pantalla.
 - La contraseña del correo (P08) se guarda con `keyring` en el Administrador de credenciales de Windows, nunca en la base de datos ni en el código.
