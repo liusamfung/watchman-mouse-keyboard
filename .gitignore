@@ -5,8 +5,7 @@
 *.sqlite
 *.sqlite3
 
-# Reportes generados
-reportes/
+# Reportes generados: solo los archivos CSV. La carpeta reportes/ del repositorio es código (el generador de CSV) y SÍ se sube.
 *.csv
 
 # Credenciales y configuración local (NUNCA subir)
