@@ -1,15 +1,16 @@
-"""Pruebas de la pantalla P02 · Periféricos (RF23, RF17).
+"""Pruebas de la pantalla P02 · Periféricos (RF23, RF17) y del diálogo para confirmar la etiqueta (RF18).
 
 Con qué datos: periféricos y alertas armados a mano (`ResumenPeriferico`, `FilaAlerta`) para las funciones de texto, y la base de
-ejemplo (`pruebas/base_de_ejemplo.py`, fecha final fija 2026-11-12). Las funciones que se prueban no abren ninguna ventana. Al final, si hay pantalla, se abre la ventana oculta y se revisa la tabla.
+ejemplo (`pruebas/base_de_ejemplo.py`, fecha final fija 2026-11-12) para guardar etiquetas con el repositorio de verdad. Las
+funciones que se prueban no abren ninguna ventana. Al final, si hay pantalla, se abre la ventana oculta y se revisa la tabla.
 
 Comprueba: los textos de cada columna (modelo, etiqueta "Por confirmar", VID:PID, vida útil del teclado, del mouse y de un modelo
-sin límite, estado retirado, con alerta pendiente o enviada), el filtro por tipo, el color de las filas, y que la pantalla lista
-los periféricos de la base de ejemplo con sus filtros.
+sin límite, estado retirado, con alerta pendiente o enviada), el filtro por tipo, el color de las filas, cuándo se puede
+confirmar una etiqueta, y que una etiqueta vacía, con espacios o repetida da un aviso claro y no un error técnico.
 
 Necesitan Tk porque la pantalla lo importa: si Python no trae Tk, se omiten (en Windows, con el Python de python.org, corren siempre).
 
-Se relaciona con: usa `ui/pantallas/pantalla_p02.py`, `comun/repositorio.py` y
+Se relaciona con: usa `ui/pantallas/pantalla_p02.py`, `ui/pantallas/dialogo_etiqueta.py`, `comun/repositorio.py` y
 `pruebas/base_de_ejemplo.py` · lo ejecuta pytest.
 """
 from collections.abc import Iterator
@@ -27,6 +28,13 @@ from comun.repositorio import FilaAlerta, Repositorio, ResumenPeriferico, UsoDeC
 from pruebas.base_de_ejemplo import crear_base_de_ejemplo
 from ui.aplicacion import Aplicacion
 from ui.componentes import ETIQUETA_ALERTA, ETIQUETA_RETIRADO
+from ui.pantallas.dialogo_etiqueta import (
+    descripcion_del_periferico,
+    guardar_etiqueta,
+    normalizar_etiqueta,
+    prefijo_sugerido,
+    validar_etiqueta,
+)
 from ui.pantallas.pantalla_p02 import (
     POR_CONFIRMAR,
     SIN_LIMITE,
@@ -35,6 +43,7 @@ from ui.pantallas.pantalla_p02 import (
     etiqueta_de_color,
     filas_de_perifericos,
     filtrar_por_tipo,
+    se_puede_confirmar,
     texto_estado,
     texto_etiqueta,
     texto_modelo,
@@ -157,9 +166,45 @@ def test_las_filas_tienen_el_id_del_periferico_y_una_columna_por_dato() -> None:
     assert filas[1].valores[-1] == "Normal"
 
 
+def test_solo_se_confirma_un_periferico_activo_por_confirmar() -> None:
+    assert se_puede_confirmar(periferico(etiqueta=None))
+    assert not se_puede_confirmar(periferico())
+    assert not se_puede_confirmar(periferico(etiqueta=None, activo=False))
+    assert not se_puede_confirmar(None)
+
+
+# ---------- Diálogo de etiqueta: funciones puras ----------
+
+
+def test_la_etiqueta_se_normaliza() -> None:
+    assert normalizar_etiqueta("  tec-0042 ") == "TEC-0042"
+
+
+def test_validar_etiqueta() -> None:
+    assert validar_etiqueta("TEC-0042") is None
+    assert validar_etiqueta("") is not None
+    assert validar_etiqueta("TEC 0042") is not None
+    assert validar_etiqueta("T" * 21) is not None
+
+
+def test_el_prefijo_sugerido_depende_del_tipo() -> None:
+    assert prefijo_sugerido("teclado") == "TEC-"
+    assert prefijo_sugerido("mouse") == "MOU-"
+    assert prefijo_sugerido("otro") == ""
+
+
+def test_la_descripcion_del_dialogo() -> None:
+    assert descripcion_del_periferico(periferico()) == "Teclado · Logitech K120 · 046D:C31C"
+    desconocido = periferico(fabricante="desconocido", modelo="desconocido")
+    assert descripcion_del_periferico(desconocido) == "Teclado · desconocido · 046D:C31C"
+
+
+# ---------- Diálogo de etiqueta: con el repositorio de verdad ----------
+
+
 @pytest.fixture
 def repo(tmp_path: Path) -> Iterator[Repositorio]:
-    """La base de ejemplo abierta con el repositorio: dos teclados (uno retirado) y dos mouse (uno de modelo desconocido)."""
+    """La base de ejemplo abierta con el repositorio. Trae un teclado y un mouse por confirmar, y TEC-0007 y MOU-0108 confirmados."""
     ruta = tmp_path / "ejemplo.db"
     _ = crear_base_de_ejemplo(ruta, hasta=FIN_DE_LA_BASE)
     repositorio = Repositorio(ruta)
@@ -167,6 +212,37 @@ def repo(tmp_path: Path) -> Iterator[Repositorio]:
         yield repositorio
     finally:
         repositorio.cerrar()
+
+
+def _por_confirmar(repo: Repositorio, tipo: str) -> ResumenPeriferico:
+    """El periférico activo por confirmar de ese tipo en la base de ejemplo."""
+    return next(p for p in repo.listar_perifericos() if p.tipo == tipo and se_puede_confirmar(p))
+
+
+def test_confirmar_la_etiqueta_cambia_el_estado_a_confirmada(repo: Repositorio) -> None:
+    teclado = _por_confirmar(repo, "teclado")
+    assert guardar_etiqueta(repo, teclado.id, " tec-0042 ") is None
+    guardado = repo.obtener_periferico(teclado.id)
+    assert guardado is not None
+    assert (guardado.etiqueta, guardado.estado_asignacion) == ("TEC-0042", "confirmada")
+
+
+def test_una_etiqueta_repetida_da_un_aviso_y_no_cambia_nada(repo: Repositorio) -> None:
+    teclado = _por_confirmar(repo, "teclado")
+    aviso = guardar_etiqueta(repo, teclado.id, "mou-0108")  # ya la tiene el mouse confirmado de la base de ejemplo
+    assert aviso is not None and "MOU-0108" in aviso and "otro periférico" in aviso
+    sin_cambios = repo.obtener_periferico(teclado.id)
+    assert sin_cambios is not None and sin_cambios.estado_asignacion == "por_confirmar"
+
+
+def test_una_etiqueta_vacia_da_un_aviso(repo: Repositorio) -> None:
+    teclado = _por_confirmar(repo, "teclado")
+    assert guardar_etiqueta(repo, teclado.id, "   ") is not None
+
+
+def test_un_periferico_que_no_existe_da_un_aviso(repo: Repositorio) -> None:
+    aviso = guardar_etiqueta(repo, 9_999, "TEC-0099")
+    assert aviso is not None and "ya no existe" in aviso
 
 
 # ---------- La pantalla, con la ventana oculta ----------
@@ -189,7 +265,7 @@ def test_la_pantalla_lista_los_perifericos_y_filtra(repo: Repositorio, tmp_path:
         pantalla.tipo.set("Mouse")
         pantalla.refrescar()
         assert pantalla.tabla.cantidad() == len([p for p in repo.listar_perifericos(incluir_retirados=False) if p.tipo == "mouse"])
-        # Sin fila elegida, "Ver detalle" queda desactivado.
-        assert pantalla.boton_detalle.instate(["disabled"])
+        # Sin fila elegida, los dos botones quedan desactivados.
+        assert pantalla.boton_detalle.instate(["disabled"]) and pantalla.boton_confirmar.instate(["disabled"])
     finally:
         ventana.destroy()
