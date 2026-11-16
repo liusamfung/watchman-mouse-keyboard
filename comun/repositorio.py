@@ -170,6 +170,15 @@ SQL_INCIDENTES_RECIENTES = """
     ORDER BY fecha_hora DESC, id DESC
     LIMIT ?
 """
+# Cuentan sin traer las filas: el panel principal los pide cada pocos segundos y un día puede tener decenas de miles de eventos.
+SQL_CONTAR_EVENTOS = """
+    SELECT COUNT(*) FROM evento
+    WHERE (? IS NULL OR fecha_hora >= ?) AND (? IS NULL OR fecha_hora < ?)
+"""
+SQL_CONTAR_INCIDENTES = """
+    SELECT COUNT(*) FROM incidente
+    WHERE (? IS NULL OR tipo = ?) AND (? IS NULL OR fecha_hora >= ?) AND (? IS NULL OR fecha_hora < ?)
+"""
 
 # Alertas con los datos del periférico, listas para mostrarse o enviarse. Falta el ORDER BY, que cambia según quién la use.
 SQL_ALERTAS = """
@@ -822,6 +831,25 @@ class Repositorio:
             )
             for f in filas
         ]
+
+    def contar_eventos(self, desde: str | None = None, hasta: str | None = None) -> int:
+        """Cuántos eventos hay en el rango (`desde` entra, `hasta` no), con todos los tipos. Sin límites, cuenta todos (RF8, RF23).
+
+        Lanza ValueError si una fecha no es ISO 8601.
+        """
+        with self._candado:
+            fila = self._uno(SQL_CONTAR_EVENTOS, _rango(desde, hasta))
+        return _entero(fila[0]) if fila is not None else 0
+
+    def contar_incidentes(self, tipo: str | None = None, desde: str | None = None, hasta: str | None = None) -> int:
+        """Cuántos incidentes hay de ese tipo (None = todos) en el rango (`desde` entra, `hasta` no) (RF10, RF23).
+
+        Sirve, por ejemplo, para los reinicios automáticos del día: los de tipo `caida_proceso`. Lanza ValueError si una fecha no es ISO 8601.
+        """
+        inicio, _, fin, _ = _rango(desde, hasta)
+        with self._candado:
+            fila = self._uno(SQL_CONTAR_INCIDENTES, (tipo, tipo, inicio, inicio, fin, fin))
+        return _entero(fila[0]) if fila is not None else 0
 
     # ---------- Alertas ----------
 

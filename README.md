@@ -105,7 +105,7 @@ En la otra terminal, cada vez que quieras ver cómo va (los contadores se guarda
 .venv/bin/python -m servicio.resumen --base servicio.db
 ```
 
-Para detener la captura como lo hará el botón de la interfaz, y volver a iniciarla:
+Con la interfaz abierta sobre la misma base (`python -m ui --base servicio.db`), el **Panel principal** muestra el estado de la captura, el tiempo de actividad y el desgaste, y sus botones **Detener captura** e **Iniciar captura** hacen lo mismo que estos dos comandos (la orden llega al servicio en unos 2 segundos):
 
 ```bash
 .venv/bin/python -c "from comun.repositorio import Repositorio; r = Repositorio('servicio.db'); r.escribir_configuracion('orden_captura', 'detener'); r.cerrar()"
@@ -115,12 +115,12 @@ Para detener la captura como lo hará el botón de la interfaz, y volver a inici
 .venv/bin/python -c "from comun.repositorio import Repositorio; r = Repositorio('servicio.db'); r.escribir_configuracion('orden_captura', 'iniciar'); r.cerrar()"
 ```
 
-Con Ctrl+C el servicio se cierra de forma normal y la sesión queda cerrada. Con `python -m ui --base servicio.db` se ve el mismo desgaste en la ventana. En Windows, con el capturador real, se usa `--capturador captura.exe` sin `--simulado` (ver la parte H de [`docs/pruebas-en-windows.md`](docs/pruebas-en-windows.md)). El archivo `servicio.db` no se sube a Git.
+Con Ctrl+C el servicio se cierra de forma normal y la sesión queda cerrada. En Windows, con el capturador real, se usa `--capturador captura.exe` sin `--simulado` (ver la parte H de [`docs/pruebas-en-windows.md`](docs/pruebas-en-windows.md)). El archivo `servicio.db` no se sube a Git.
 
 ### 6. Lo que todavía no se puede ejecutar
 
 - **El aviso por correo**: faltan el evaluador de umbrales (90 % y 100 %), el notificador de correo y el guardado de la contraseña con `keyring`. El servicio ya captura, guarda y cuenta el desgaste, pero todavía no envía alertas. Se siguen en los issues del repositorio.
-- **Las pantallas P01 (panel principal) y P08 (configuración)** todavía muestran el aviso "en construcción". Las demás (P02 a P07) ya funcionan.
+- **La pantalla P08 (configuración)** todavía muestra el aviso "en construcción". Las demás (P01 a P07) ya funcionan.
 - **El inicio automático** al iniciar sesión en Windows (tarea del Programador de tareas): hoy el servicio se lanza a mano.
 
 ## Más documentación

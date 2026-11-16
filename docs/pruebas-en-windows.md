@@ -112,8 +112,8 @@ py -m venv .venv
 
 | # | Qué mirar | Resultado esperado | ¿Pasó? |
 |---|---|---|---|
-| E1 | Última línea de `pytest` | `passed` y **ningún** `failed` ni `error`. Hoy son 415 pruebas: con un compilador de C++ pasan las 415; sin él (lo normal en Windows), `404 passed, 11 skipped`. Anota el número exacto | |
-| E2 | Con un compilador moderno (por ejemplo `winget install BrechtSanders.WinLibs.POSIX.UCRT`, gcc 16) | Pasan 414 y se omite 1 (la de "sin modo simulado", que solo aplica fuera de Windows). Un MinGW viejo (mingw.org, gcc 6) no soporta C++17 y debe quitarse del PATH. Sin sanitizers: WinLibs no trae `asan` ni `ubsan` y las pruebas los omiten solas | |
+| E1 | Última línea de `pytest` | `passed` y **ningún** `failed` ni `error`. Hoy son 443 pruebas: con un compilador de C++ pasan las 443; sin él (lo normal en Windows), `432 passed, 11 skipped`. Anota el número exacto | |
+| E2 | Con un compilador moderno (por ejemplo `winget install BrechtSanders.WinLibs.POSIX.UCRT`, gcc 16) | Pasan 442 y se omite 1 (la de "sin modo simulado", que solo aplica fuera de Windows). Un MinGW viejo (mingw.org, gcc 6) no soporta C++17 y debe quitarse del PATH. Sin sanitizers: WinLibs no trae `asan` ni `ubsan` y las pruebas los omiten solas | |
 | E2b | Las pruebas omitidas (`skipped`) | Solo las de C++ (`test_capturador_cpp.py`), si no hay `g++` o `clang++` en el PATH. Ninguna de `test_ui_aplicacion.py` debe aparecer como omitida: si aparece "este Python no trae Tk", reinstala Python marcando "tcl/tk and IDLE" | |
 | E3 | `basedpyright` | `0 errors, 0 warnings, 0 notes` | |
 
@@ -121,7 +121,7 @@ Si algo falla, copia el nombre de la prueba y las 10 líneas del error: es justo
 
 ## Parte F: la base de ejemplo y la interfaz (10 minutos)
 
-La interfaz (`ui/`) tiene hoy su estructura (ventana y menú) y las pantallas P02 a P07 con datos; P01 y P08 siguen "en construcción". Se prueba con la base de ejemplo, que crea datos inventados y no toca ninguna base real:
+La interfaz (`ui/`) tiene hoy su estructura (ventana y menú) y las pantallas P01 a P07 con datos; solo P08 sigue "en construcción". Se prueba con la base de ejemplo, que crea datos inventados y no toca ninguna base real:
 
 ```powershell
 py -m pruebas.base_de_ejemplo $env:TEMP\ejemplo.db
@@ -132,11 +132,11 @@ El primer comando debe mostrar un resumen (`4 periféricos, … sesiones, … ev
 
 | # | Qué mirar | Resultado esperado | ¿Pasó? |
 |---|---|---|---|
-| F1 | La ventana al abrir | Se abre en "Panel principal" con una banda azul arriba, un menú a la izquierda y una barra de estado abajo, parecido a `docs/mockups/P01_PanelPrincipal.png` | |
+| F1 | La ventana al abrir | Se abre en "Panel principal" con una banda azul arriba, un menú a la izquierda y una barra de estado abajo, parecido a `docs/mockups/P01_PanelPrincipal.png`. Con la base de ejemplo (sin servicio) dice `● Servicio detenido` en rojo y un aviso; los tres recuadros se ven completos, sin cortarse abajo, también con la escala en 125 % o 150 % | |
 | F2 | Banda azul | A la izquierda `Equipo: PC-EJEMPLO-01`; a la derecha `Sesión iniciada hoy a las 08:xx a. m.` (la base de ejemplo termina hoy y su última sesión está en curso) | |
 | F3 | Nitidez del texto | El texto se ve **nítido**, no borroso. Pruébalo con la escala de pantalla en 125 % o 150 % (Configuración > Pantalla > Escala) | |
 | F4 | Menú | Siete botones, en este orden: Panel principal, Periféricos, Sesiones, Análisis de uso, Reportes, Alertas e incidentes, Configuración | |
-| F5 | Haz clic en cada botón | Cambian el título y el subtítulo y el botón de la pantalla actual queda resaltado. Periféricos, Sesiones, Análisis de uso, Reportes y Alertas e incidentes muestran los datos de ejemplo; Panel principal y Configuración muestran el aviso "Pantalla en construcción · issue #…" | |
+| F5 | Haz clic en cada botón | Cambian el título y el subtítulo y el botón de la pantalla actual queda resaltado. Panel principal, Periféricos, Sesiones, Análisis de uso, Reportes y Alertas e incidentes muestran los datos de ejemplo; solo Configuración muestra el aviso "Pantalla en construcción · issue #…" | |
 | F6 | Barra de abajo | Dice `Base de datos: ejemplo.db` | |
 | F7 | Cambia el tamaño de la ventana | No se puede hacer más pequeña que unos 900 × 560 y nada se corta al agrandarla | |
 | F8 | Cierra con la X | Se cierra sin errores y sin dejar procesos de Python en el Administrador de tareas | |
@@ -163,23 +163,29 @@ Si G1 falla con `PermissionError`, escribe en el reporte con qué usuario lo eje
 
 ## Parte H: el servicio completo con el capturador real (15 minutos)
 
-Esta parte comprueba la cadena entera con tu teclado y tu mouse: **captura real → servicio → base de datos → resumen**, y que la orden de detener llegue al capturador por la base. Necesitas `captura.exe` copiado en la carpeta raíz del repositorio. Usa una base de prueba en la carpeta temporal; no toca la real.
+Esta parte comprueba la cadena entera con tu teclado y tu mouse: **captura real → servicio → base de datos → interfaz**, y que los botones del Panel principal lleguen al capturador por la base. Necesitas `captura.exe` copiado en la carpeta raíz del repositorio. Usa una base de prueba en la carpeta temporal; no toca la real.
 
 > **Importante:** el servicio cuenta tus pulsaciones por tecla. **No escribas contraseñas ni datos personales** mientras dura la prueba, y no pegues en el reporte el texto de la pantalla de la parte A.
 
-Abre **dos** ventanas de PowerShell en la carpeta raíz. En la primera arranca el servicio (no escribe nada en pantalla; sigue hasta que lo cierres):
+Abre **tres** ventanas de PowerShell en la carpeta raíz. En la primera arranca el servicio (no escribe nada en pantalla; sigue hasta que lo cierres):
 
 ```powershell
 py -m servicio.principal --base $env:TEMP\servicio.db --capturador captura.exe
 ```
 
-En la segunda, cada vez que la guía diga "mira el resumen":
+En la segunda abre la interfaz sobre la misma base; su **Panel principal** tiene los botones para iniciar y detener la captura:
+
+```powershell
+py -m ui --base $env:TEMP\servicio.db
+```
+
+En la tercera, cada vez que la guía diga "mira el resumen":
 
 ```powershell
 py -m servicio.resumen --base $env:TEMP\servicio.db
 ```
 
-Para dar la orden de detener y de iniciar (lo que hará el botón de la interfaz):
+Si la interfaz no abre, las órdenes de detener y de iniciar también se pueden dar a mano (es lo mismo que hacen los botones del Panel principal):
 
 ```powershell
 py -c "from comun.repositorio import Repositorio; r = Repositorio(r'$env:TEMP\servicio.db'); r.escribir_configuracion('orden_captura', 'detener'); r.cerrar()"
@@ -194,10 +200,11 @@ py -c "from comun.repositorio import Repositorio; r = Repositorio(r'$env:TEMP\se
 | H1 | Arranca el servicio en la primera ventana | No muestra nada ni abre ninguna ventana. En el Administrador de tareas (pestaña Detalles) aparece `captura.exe` | |
 | H2 | Escribe y mueve el mouse unos segundos, espera 15 s y mira el resumen | `Servicio: en marcha`, `Captura: capturando`, `Sesión #1: en curso`, dos periféricos (un teclado y un mouse) y contadores mayores que 0. Un modelo que no está en la tabla sale como `desconocido`: es normal | |
 | H3 | Lee el resumen completo | Solo hay totales y porcentajes. **No aparece ninguna tecla** (RNF4) | |
-| H4 | Da la orden de **detener** y espera 5 s | El resumen dice `Captura: detenida`, `captura.exe` ya no está en el Administrador de tareas y, al escribir, los contadores **no** suben | |
-| H5 | Da la orden de **iniciar** y escribe otra vez | `captura.exe` vuelve a aparecer y los contadores vuelven a subir | |
+| H3b | Mira el Panel principal de la interfaz | `● Captura ACTIVA` en verde, `Proceso de captura: en ejecución`, el tiempo de actividad y los eventos de hoy suben cada pocos segundos, y los periféricos del equipo aparecen en la tabla con su porcentaje. El botón "Iniciar captura" está desactivado | |
+| H4 | Pulsa **Detener captura** en el Panel principal y espera 5 s | Primero dice `● Deteniendo captura…` y luego `● Captura DETENIDA` en rojo. `captura.exe` ya no está en el Administrador de tareas, el resumen dice `Captura: detenida` y, al escribir, los contadores **no** suben | |
+| H5 | Pulsa **Iniciar captura** y escribe otra vez | Dice `● Iniciando captura…` y luego `● Captura ACTIVA`. `captura.exe` vuelve a aparecer y los contadores vuelven a subir | |
 | H6 | Finaliza `captura.exe` desde el Administrador de tareas (recuperación) | A los pocos segundos vuelve a aparecer solo y el resumen muestra un incidente `caida_proceso` | |
-| H7 | Pulsa Ctrl+C en la primera ventana | El servicio termina sin errores. El resumen dice `Servicio: cerrado de forma ordenada` y `Sesión #1: cerrada (normal)` | |
+| H7 | Pulsa Ctrl+C en la primera ventana | El servicio termina sin errores. El resumen dice `Servicio: cerrado de forma ordenada` y `Sesión #1: cerrada (normal)`. En unos 10 segundos el Panel principal pasa a `● Servicio detenido` y los botones siguen sirviendo (la orden se guarda para cuando arranque el servicio) | |
 | H8 | Sin consola: `pyw -m servicio.principal --base $env:TEMP\servicio.db --capturador captura.exe` | **No** aparece ninguna ventana, ni negra ni de otro tipo (RNF11), y `captura.exe` está corriendo | |
 | H9 | Finaliza `pythonw.exe` y `captura.exe` desde el Administrador de tareas (apagado brusco), vuelve a arrancar el servicio y mira el resumen | La sesión anterior aparece `cerrada (inesperado)` y hay un incidente `apagado_inesperado` (RNF12) | |
 

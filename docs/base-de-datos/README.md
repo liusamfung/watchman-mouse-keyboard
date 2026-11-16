@@ -78,6 +78,8 @@ Las pantallas, los reportes y el análisis no escriben SQL: piden lo que necesit
 | `listar_sesiones(id_equipo=None, dia=None)` | `list[FilaSesion]`, de la más reciente a la más antigua | P04 |
 | `actividad_del_dia(dia, id_equipo=None)` | `(segundos de teclado, segundos de mouse)`: suma de las sesiones que empezaron ese día | P04 |
 | `incidentes_recientes(limite=50)` | `list[FilaIncidente]` | P01, P07 |
+| `contar_eventos(desde, hasta)` | `int`: cuántos eventos hay en el rango, sin traerlos | P01 (eventos registrados hoy) |
+| `contar_incidentes(tipo=None, desde, hasta)` | `int`: cuántos incidentes de ese tipo hay en el rango | P01 (reinicios automáticos hoy) |
 | `listar_alertas(estado=None)` | `list[FilaAlerta]`, de la más reciente a la más antigua | P01, P07 |
 | `alertas_pendientes()` | `list[FilaAlerta]` sin enviar, de la más antigua a la más reciente | notificador |
 | `crear_alerta(id_periferico, umbral, fecha_creacion, detalle=None)` | `True` si la creó, `False` si ya existía (una sola por periférico y umbral) | evaluador |
