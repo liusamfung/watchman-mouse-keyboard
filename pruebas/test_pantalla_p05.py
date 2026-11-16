@@ -9,6 +9,7 @@ comun/repositorio.py y pruebas/base_de_ejemplo.py;
 lo ejecuta pytest.
 """
 
+import ast
 from datetime import date
 from pathlib import Path
 
@@ -214,3 +215,20 @@ def test_filtros_de_teclado_y_mouse(
 
     assert len(teclado) <= len(todos)
     assert len(mouse) <= len(todos)
+
+
+def test_todos_los_textos_del_lienzo_tienen_un_color_explicito() -> None:
+    """Sin `fill`, Tk usa el color del sistema: blanco en macOS con modo oscuro, ilegible sobre el fondo claro.
+
+    Se revisa el código fuente con `ast` (no hace falta abrir Tk): toda llamada a `create_text` debe pasar `fill`.
+    """
+    ruta = Path(__file__).parent.parent / "ui" / "pantallas" / "pantalla_p05.py"
+    arbol = ast.parse(ruta.read_text(encoding="utf-8"))
+    llamadas = [
+        nodo for nodo in ast.walk(arbol)
+        if isinstance(nodo, ast.Call) and isinstance(nodo.func, ast.Attribute) and nodo.func.attr == "create_text"
+    ]
+
+    assert len(llamadas) >= 4   # las horas, los días, y las dos frases de la leyenda
+    for llamada in llamadas:
+        assert "fill" in {palabra.arg for palabra in llamada.keywords}, f"create_text sin fill en la línea {llamada.lineno}"

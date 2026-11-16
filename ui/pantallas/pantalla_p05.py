@@ -63,6 +63,12 @@ COLORES_CALOR: tuple[str, ...] = (
 )
 
 
+# Color de todos los textos del lienzo (horas, días y leyenda). Sin un color explícito, Tk usa el del sistema: en macOS
+# con el modo oscuro es BLANCO y, sobre el fondo claro de esta pantalla, el texto casi no se lee. En Windows el color por
+# defecto sería negro, pero así el texto se ve igual con cualquier tema.
+COLOR_TEXTO = "#222222"
+
+
 def validar_periodo(desde: str, hasta: str) -> tuple[str, str]:
     """Valida las fechas y produce un intervalo ISO semiabierto."""
     try:
@@ -134,7 +140,7 @@ def describir_patrones(
         mayor_duracion = max(
             tramo.minutos for tramo in tramos
         )
-        
+
         mensajes.append(
             f"• Tramos prolongados: {len(tramos)} detectados "
             + f"(el más largo duró {mayor_duracion} minutos)."
@@ -385,6 +391,7 @@ class PantallaP05(Pantalla):
                     arriba - 12,
                     text=f"{hora:02d}h",
                     font="TkDefaultFont",
+                    fill=COLOR_TEXTO,
                 )
 
         for dia in range(7):
@@ -396,6 +403,7 @@ class PantallaP05(Pantalla):
                 text=DIAS_SEMANA[dia],
                 anchor="e",
                 font="TkDefaultFont",
+                fill=COLOR_TEXTO,
             )
 
             for hora in range(24):
@@ -422,6 +430,7 @@ class PantallaP05(Pantalla):
             text="Pocos eventos",
             anchor="w",
             font="TkDefaultFont",
+            fill=COLOR_TEXTO,
         )
 
         inicio_escala = izquierda + 115
@@ -445,4 +454,5 @@ class PantallaP05(Pantalla):
             text="Muchos eventos",
             anchor="w",
             font="TkDefaultFont",
+            fill=COLOR_TEXTO,
         )
