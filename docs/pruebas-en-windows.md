@@ -1,6 +1,6 @@
 # Prueba del capturador y de la interfaz en Windows
 
-Guía para comprobar en un PC con Windows lo que no se puede probar en macOS: que **Raw Input** recibe el teclado y el mouse, que se lee bien el VID/PID y que los eventos llegan a Python en menos de 1 segundo (RNF1). Las partes A a C duran unos 15 minutos. Las partes E a G (pruebas automáticas, interfaz y base de datos en `C:\ProgramData`) agregan unos 25 minutos más; Windows es el sistema de destino, así que todo lo que se programa en macOS debe confirmarse aquí.
+Guía para comprobar en un PC con Windows lo que no se puede probar en macOS: que **Raw Input** recibe el teclado y el mouse, que se lee bien el VID/PID y que los eventos llegan a Python en menos de 1 segundo (RNF1). Las partes A a C duran unos 15 minutos. Las partes E a H (pruebas automáticas, interfaz, base de datos en `C:\ProgramData` y el servicio completo) agregan unos 35 minutos más; Windows es el sistema de destino, así que todo lo que se programa en macOS debe confirmarse aquí.
 
 > **Importante:** durante las pruebas el programa escribe en pantalla las teclas que pulsas. **No escribas contraseñas ni datos personales.** Al terminar, pega en el reporte solo los resultados que pide la guía, nunca el texto de la pantalla de la parte A.
 
@@ -11,7 +11,7 @@ Guía para comprobar en un PC con Windows lo que no se puede probar en macOS: qu
 | Parte A (obligatoria) | Un PC con Windows 10 u 11 y el archivo `captura.exe`. No hay que instalar nada. |
 | Partes B y C | Además, Python 3.12 o superior (con la opción "Add Python to PATH", que instala el comando `py`) y este repositorio descargado (`git clone` o el ZIP de GitHub). |
 | Parte D (opcional) | Visual Studio 2022 Build Tools con "Desarrollo para el escritorio con C++" y CMake. |
-| Partes E, F y G | Python 3.12 o superior **instalado desde python.org** con la opción "tcl/tk and IDLE" marcada (viene marcada por defecto; trae Tkinter, que usa la interfaz) y este repositorio actualizado (`git pull` en `main`). No hace falta `captura.exe`. |
+| Partes E, F, G y H | Python 3.12 o superior **instalado desde python.org** con la opción "tcl/tk and IDLE" marcada (viene marcada por defecto; trae Tkinter, que usa la interfaz) y este repositorio actualizado (`git pull` en `main`). No hace falta `captura.exe`, salvo en la parte H. |
 
 El `captura.exe` se compiló desde macOS con MinGW-w64, a partir del código de `capturador/`. Se enlazó de forma estática: solo usa las bibliotecas propias de Windows.
 
@@ -112,8 +112,8 @@ py -m venv .venv
 
 | # | Qué mirar | Resultado esperado | ¿Pasó? |
 |---|---|---|---|
-| E1 | Última línea de `pytest` | `passed` y **ningún** `failed` ni `error`. Hoy son 304 pruebas: con un compilador de C++ pasan las 304; sin él (lo normal en Windows), `293 passed, 11 skipped`. Anota el número exacto | |
-| E2 | Con un compilador moderno (por ejemplo `winget install BrechtSanders.WinLibs.POSIX.UCRT`, gcc 16) | Pasan 303 y se omite 1 (la de "sin modo simulado", que solo aplica fuera de Windows). Un MinGW viejo (mingw.org, gcc 6) no soporta C++17 y debe quitarse del PATH. Sin sanitizers: WinLibs no trae `asan` ni `ubsan` y las pruebas los omiten solas | |
+| E1 | Última línea de `pytest` | `passed` y **ningún** `failed` ni `error`. Hoy son 415 pruebas: con un compilador de C++ pasan las 415; sin él (lo normal en Windows), `404 passed, 11 skipped`. Anota el número exacto | |
+| E2 | Con un compilador moderno (por ejemplo `winget install BrechtSanders.WinLibs.POSIX.UCRT`, gcc 16) | Pasan 414 y se omite 1 (la de "sin modo simulado", que solo aplica fuera de Windows). Un MinGW viejo (mingw.org, gcc 6) no soporta C++17 y debe quitarse del PATH. Sin sanitizers: WinLibs no trae `asan` ni `ubsan` y las pruebas los omiten solas | |
 | E2b | Las pruebas omitidas (`skipped`) | Solo las de C++ (`test_capturador_cpp.py`), si no hay `g++` o `clang++` en el PATH. Ninguna de `test_ui_aplicacion.py` debe aparecer como omitida: si aparece "este Python no trae Tk", reinstala Python marcando "tcl/tk and IDLE" | |
 | E3 | `basedpyright` | `0 errors, 0 warnings, 0 notes` | |
 
@@ -121,7 +121,7 @@ Si algo falla, copia el nombre de la prueba y las 10 líneas del error: es justo
 
 ## Parte F: la base de ejemplo y la interfaz (10 minutos)
 
-La interfaz (`ui/`) tiene hoy su estructura: ventana, menú y las 8 pantallas como "en construcción". Se prueba con la base de ejemplo, que crea datos inventados y no toca ninguna base real:
+La interfaz (`ui/`) tiene hoy su estructura (ventana y menú) y las pantallas P02 a P07 con datos; P01 y P08 siguen "en construcción". Se prueba con la base de ejemplo, que crea datos inventados y no toca ninguna base real:
 
 ```powershell
 py -m pruebas.base_de_ejemplo $env:TEMP\ejemplo.db
@@ -136,7 +136,7 @@ El primer comando debe mostrar un resumen (`4 periféricos, … sesiones, … ev
 | F2 | Banda azul | A la izquierda `Equipo: PC-EJEMPLO-01`; a la derecha `Sesión iniciada hoy a las 08:xx a. m.` (la base de ejemplo termina hoy y su última sesión está en curso) | |
 | F3 | Nitidez del texto | El texto se ve **nítido**, no borroso. Pruébalo con la escala de pantalla en 125 % o 150 % (Configuración > Pantalla > Escala) | |
 | F4 | Menú | Siete botones, en este orden: Panel principal, Periféricos, Sesiones, Análisis de uso, Reportes, Alertas e incidentes, Configuración | |
-| F5 | Haz clic en cada botón | Cambian el título y el subtítulo, el botón de la pantalla actual queda resaltado y aparece el aviso "Pantalla en construcción · issue #…" | |
+| F5 | Haz clic en cada botón | Cambian el título y el subtítulo y el botón de la pantalla actual queda resaltado. Periféricos, Sesiones, Análisis de uso, Reportes y Alertas e incidentes muestran los datos de ejemplo; Panel principal y Configuración muestran el aviso "Pantalla en construcción · issue #…" | |
 | F6 | Barra de abajo | Dice `Base de datos: ejemplo.db` | |
 | F7 | Cambia el tamaño de la ventana | No se puede hacer más pequeña que unos 900 × 560 y nada se corta al agrandarla | |
 | F8 | Cierra con la X | Se cierra sin errores y sin dejar procesos de Python en el Administrador de tareas | |
@@ -161,12 +161,56 @@ py -c "from comun.repositorio import Repositorio, ruta_por_defecto; print(ruta_p
 
 Si G1 falla con `PermissionError`, escribe en el reporte con qué usuario lo ejecutaste: habrá que decidir si la instalación crea la carpeta con permisos para todos los usuarios.
 
+## Parte H: el servicio completo con el capturador real (15 minutos)
+
+Esta parte comprueba la cadena entera con tu teclado y tu mouse: **captura real → servicio → base de datos → resumen**, y que la orden de detener llegue al capturador por la base. Necesitas `captura.exe` copiado en la carpeta raíz del repositorio. Usa una base de prueba en la carpeta temporal; no toca la real.
+
+> **Importante:** el servicio cuenta tus pulsaciones por tecla. **No escribas contraseñas ni datos personales** mientras dura la prueba, y no pegues en el reporte el texto de la pantalla de la parte A.
+
+Abre **dos** ventanas de PowerShell en la carpeta raíz. En la primera arranca el servicio (no escribe nada en pantalla; sigue hasta que lo cierres):
+
+```powershell
+py -m servicio.principal --base $env:TEMP\servicio.db --capturador captura.exe
+```
+
+En la segunda, cada vez que la guía diga "mira el resumen":
+
+```powershell
+py -m servicio.resumen --base $env:TEMP\servicio.db
+```
+
+Para dar la orden de detener y de iniciar (lo que hará el botón de la interfaz):
+
+```powershell
+py -c "from comun.repositorio import Repositorio; r = Repositorio(r'$env:TEMP\servicio.db'); r.escribir_configuracion('orden_captura', 'detener'); r.cerrar()"
+```
+
+```powershell
+py -c "from comun.repositorio import Repositorio; r = Repositorio(r'$env:TEMP\servicio.db'); r.escribir_configuracion('orden_captura', 'iniciar'); r.cerrar()"
+```
+
+| # | Qué hacer | Resultado esperado | ¿Pasó? |
+|---|---|---|---|
+| H1 | Arranca el servicio en la primera ventana | No muestra nada ni abre ninguna ventana. En el Administrador de tareas (pestaña Detalles) aparece `captura.exe` | |
+| H2 | Escribe y mueve el mouse unos segundos, espera 15 s y mira el resumen | `Servicio: en marcha`, `Captura: capturando`, `Sesión #1: en curso`, dos periféricos (un teclado y un mouse) y contadores mayores que 0. Un modelo que no está en la tabla sale como `desconocido`: es normal | |
+| H3 | Lee el resumen completo | Solo hay totales y porcentajes. **No aparece ninguna tecla** (RNF4) | |
+| H4 | Da la orden de **detener** y espera 5 s | El resumen dice `Captura: detenida`, `captura.exe` ya no está en el Administrador de tareas y, al escribir, los contadores **no** suben | |
+| H5 | Da la orden de **iniciar** y escribe otra vez | `captura.exe` vuelve a aparecer y los contadores vuelven a subir | |
+| H6 | Finaliza `captura.exe` desde el Administrador de tareas (recuperación) | A los pocos segundos vuelve a aparecer solo y el resumen muestra un incidente `caida_proceso` | |
+| H7 | Pulsa Ctrl+C en la primera ventana | El servicio termina sin errores. El resumen dice `Servicio: cerrado de forma ordenada` y `Sesión #1: cerrada (normal)` | |
+| H8 | Sin consola: `pyw -m servicio.principal --base $env:TEMP\servicio.db --capturador captura.exe` | **No** aparece ninguna ventana, ni negra ni de otro tipo (RNF11), y `captura.exe` está corriendo | |
+| H9 | Finaliza `pythonw.exe` y `captura.exe` desde el Administrador de tareas (apagado brusco), vuelve a arrancar el servicio y mira el resumen | La sesión anterior aparece `cerrada (inesperado)` y hay un incidente `apagado_inesperado` (RNF12) | |
+
+Al terminar, cierra el servicio (Ctrl+C, o finaliza `pythonw.exe` y `captura.exe`) y borra `$env:TEMP\servicio.db*`.
+
+Si algo falla, anota el número de fila y copia el resultado del resumen: no contiene teclas.
+
 ## Reporte de la prueba
 
 Escribe en la conversación del equipo, o en un comentario del pull request:
 
 1. La versión de Windows (por ejemplo, Windows 11 23H2) y el modelo del teclado y del mouse.
-2. La tabla de las partes A, B y C con "sí" o "no" en cada fila. Si hiciste las partes E, F y G, también sus tablas y el número de pruebas que pasaron en E1.
+2. La tabla de las partes A, B y C con "sí" o "no" en cada fila. Si hiciste las partes E, F, G y H, también sus tablas y el número de pruebas que pasaron en E1.
 3. El bloque `Resultado de la prueba` de la parte B, copiado tal cual. Ese bloque **no** contiene teclas.
 4. Cualquier cosa que haya sorprendido: una ventana que apareció, una tecla con nombre raro (por ejemplo `VK_E5`), un dispositivo con `0000`, etc.
 

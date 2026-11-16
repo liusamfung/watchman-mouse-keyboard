@@ -91,10 +91,37 @@ mkdir -p capturador/build && clang++ -std=c++17 -Icapturador/src capturador/src/
 
 El resultado debe terminar con `Veredicto (RNF1 < 1000 ms, sin caídas): CUMPLE`. En un PC con Windows, sin `--simulado`, el mismo script prueba el capturador real con tu teclado y tu mouse.
 
-### 5. Lo que todavía no se puede ejecutar
+### 5. Probar el servicio completo sin Windows
 
-- **El producto completo** (capturar, guardar, avisar por correo y verlo en la ventana): falta el punto de entrada del servicio (`servicio/principal.py`), el evaluador de umbrales y el notificador de correo. Se siguen en los issues del repositorio.
-- **Las pantallas** de la interfaz todavía muestran el aviso "en construcción"; cada una se implementa en su propio issue.
+El servicio junta el capturador, el validador, el guardador y el controlador. En macOS o Linux se usa el capturador de C++ en modo simulado (el que se compiló en el paso 4). Abre dos terminales:
+
+```bash
+.venv/bin/python -m servicio.principal --base servicio.db --capturador capturador/build/captura --simulado --intervalo-ms 20
+```
+
+En la otra terminal, cada vez que quieras ver cómo va (los contadores se guardan cada 10 segundos):
+
+```bash
+.venv/bin/python -m servicio.resumen --base servicio.db
+```
+
+Para detener la captura como lo hará el botón de la interfaz, y volver a iniciarla:
+
+```bash
+.venv/bin/python -c "from comun.repositorio import Repositorio; r = Repositorio('servicio.db'); r.escribir_configuracion('orden_captura', 'detener'); r.cerrar()"
+```
+
+```bash
+.venv/bin/python -c "from comun.repositorio import Repositorio; r = Repositorio('servicio.db'); r.escribir_configuracion('orden_captura', 'iniciar'); r.cerrar()"
+```
+
+Con Ctrl+C el servicio se cierra de forma normal y la sesión queda cerrada. Con `python -m ui --base servicio.db` se ve el mismo desgaste en la ventana. En Windows, con el capturador real, se usa `--capturador captura.exe` sin `--simulado` (ver la parte H de [`docs/pruebas-en-windows.md`](docs/pruebas-en-windows.md)). El archivo `servicio.db` no se sube a Git.
+
+### 6. Lo que todavía no se puede ejecutar
+
+- **El aviso por correo**: faltan el evaluador de umbrales (90 % y 100 %), el notificador de correo y el guardado de la contraseña con `keyring`. El servicio ya captura, guarda y cuenta el desgaste, pero todavía no envía alertas. Se siguen en los issues del repositorio.
+- **Las pantallas P01 (panel principal) y P08 (configuración)** todavía muestran el aviso "en construcción". Las demás (P02 a P07) ya funcionan.
+- **El inicio automático** al iniciar sesión en Windows (tarea del Programador de tareas): hoy el servicio se lanza a mano.
 
 ## Más documentación
 

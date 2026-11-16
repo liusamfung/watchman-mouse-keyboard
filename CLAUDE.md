@@ -69,7 +69,7 @@ Lee el documento que corresponda **antes** de implementar esa parte. El esquema 
 
 ```
 capturador/        C++ (Raw Input). CMakeLists.txt o proyecto de Visual Studio
-servicio/          Python: gestor_subproceso, validador, sesion, contador, evaluador, notificador, control
+servicio/          Python: gestor_subproceso, validador, sesion, contador, guardador, control, principal, resumen, evaluador, notificador
 ui/                Python + Tkinter: una clase por pantalla P01–P08, cada una en su archivo de `ui/pantallas/` (ver `docs/interfaz.md`)
 comun/             Python: repositorio SQLite, configuración, constantes (compartido por servicio e interfaz)
 pruebas/           pytest. Incluye `capturador_simulado.py`, que imita al capturador de C++ para probar el servicio sin Windows

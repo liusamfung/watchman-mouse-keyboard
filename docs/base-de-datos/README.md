@@ -35,7 +35,7 @@ Ruta sugerida en Windows: `C:\ProgramData\CapturadorEventos\eventos.db` (configu
 | `contador_diario` | Pulsaciones por tecla, clics y scroll acumulados por día y por periférico. | RF16, RNF4 |
 | `alerta` | Avisos del 90 % y del 100 %, con su estado de envío y reintentos. | RF19, RF20, RNF12 |
 | `incidente` | Errores de comunicación, eventos inválidos, caídas del capturador y apagados inesperados. | RF9, RF10 |
-| `configuracion` | Umbrales, destinatarios, servidor SMTP y orden de iniciar o detener la captura. | RNF9, RNF10 |
+| `configuracion` | Umbrales, destinatarios, servidor SMTP, orden de iniciar o detener la captura y el estado del servicio. | RF11, RNF9, RNF10 |
 
 ## Relaciones
 
@@ -92,6 +92,16 @@ Las pantallas, los reportes y el análisis no escriben SQL: piden lo que necesit
 **El límite es por elemento** (20 000 pulsaciones por tecla, 10 000 clics por botón, 15 000 pasos de la rueda). Por eso el porcentaje de `UsoDeConteo` y de `ResumenPeriferico.porcentaje_maximo` sale del elemento más gastado (`mayor_uso`) y no de la suma de todos (`total`): una tecla a punto de agotarse debe verse aunque el teclado entero tenga muchas pulsaciones repartidas.
 
 En las filas de los reportes, la columna "periférico" es la etiqueta de inventario o, si todavía no la tiene, `ID n`. Las horas de eventos dejan fuera las teclas liberadas por defecto: cada pulsación genera dos eventos (presionada y liberada) y contarlos doble haría pesar más al teclado que al mouse.
+
+### Claves de `configuracion` con las que hablan la interfaz y el servicio (RF11)
+
+Son los dos procesos del sistema y no se llaman entre sí: se hablan por estas tres claves (`servicio/control.py`). Ninguna lleva contraseñas ni teclas.
+
+| Clave | Quién la escribe | Valores | Para qué |
+|---|---|---|---|
+| `orden_captura` | la interfaz (P01) | `iniciar` o `detener` | Lo que Soporte TI pidió. El servicio la lee cada 2 s. Si falta se entiende `iniciar`; un valor desconocido se ignora. |
+| `estado_captura` | el servicio | `capturando`, `detenida` o `cerrado` | Lo que el servicio hace de verdad. `detenida` es que está vivo pero no captura; `cerrado`, que terminó de forma ordenada. Se crea la primera vez que el servicio arranca. |
+| `latido_servicio` | el servicio | fecha y hora ISO 8601 | Se actualiza en cada lectura. Si tiene más de 10 s, el servicio se da por caído (`leer_estado` de `servicio/control.py`). Se crea la primera vez que el servicio arranca. |
 
 ## Decisiones de diseño
 

@@ -19,7 +19,7 @@ válido reinicia esa cuenta. `detener` pide la parada y cierra el proceso; no cu
 Se relaciona con: usa `servicio/validador.py` (valida cada línea) y el ejecutable del capturador
 (`capturador/`, o `pruebas/capturador_simulado.py` en las pruebas), del que lee el contrato de
 `docs/arquitectura/contrato-json.md` · lo usan `servicio/guardador.py` (recibe sus eventos e incidentes por
-`al_evento` y `al_incidente`), el futuro `servicio/principal.py` y `pruebas/test_gestor_subproceso.py`.
+`al_evento` y `al_incidente`), `servicio/control.py` (lo inicia y lo detiene según la orden de la interfaz), `servicio/principal.py` y `pruebas/test_gestor_subproceso.py`.
 """
 import subprocess
 import sys
