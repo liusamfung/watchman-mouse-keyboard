@@ -4,7 +4,7 @@ Con qué datos: una base nueva por prueba (con los modelos de ejemplo K120 y B10
 "PC-PRUEBA-01", fechas fijas de noviembre de 2026 (el 2 es lunes) y teclas inventadas ("Q", "W"). Comprueba:
 el desgaste y el porcentaje de cada periférico (con límite, sin límite y retirados), las sesiones y su total del
 día, los incidentes recientes, el ciclo de vida de una alerta (crear sin duplicar, intentos, envío), las horas de
-los eventos para el mapa de calor, las filas de los reportes CSV, la validación de los rangos de fechas y que
+los eventos para el mapa de calor, el conteo de eventos e incidentes de un día, las filas de los reportes CSV, la validación de los rangos de fechas y que
 ninguna lectura de eventos traiga la tecla (RNF4).
 
 Se relaciona con: usa `comun/repositorio.py` y `pruebas/ayudas_base.py` · lo ejecuta pytest. Las pruebas de
@@ -490,3 +490,29 @@ def test_los_resultados_de_las_lecturas_no_tienen_ningun_campo_de_tecla() -> Non
     for tipo in (UsoDeConteo, ResumenPeriferico, FilaSesion, FilaIncidente, FilaAlerta):
         nombres = {campo.name for campo in dataclasses.fields(tipo)}
         assert not nombres & prohibidos, tipo.__name__
+
+
+def test_se_cuentan_los_eventos_de_un_rango_sin_traerlos(repo: Repositorio) -> None:
+    _, teclado = crear_teclado(repo)
+    sesion = repo.abrir_sesion(1, "2026-11-02T08:00:00")
+    for hora in ("2026-11-02T08:00:00.100", "2026-11-02T23:59:59.900", "2026-11-03T00:00:00.000"):
+        repo.guardar_evento(sesion, teclado, "clic_izquierdo", hora)
+    repo.guardar_evento(sesion, teclado, "tecla_liberada", "2026-11-02T09:00:00.000")  # una liberación también es un evento registrado
+
+    assert repo.contar_eventos() == 4
+    assert repo.contar_eventos("2026-11-02", "2026-11-03") == 3  # el día final no entra: la medianoche es del día siguiente
+    assert repo.contar_eventos("2026-11-05", "2026-11-06") == 0
+    with pytest.raises(ValueError):
+        _ = repo.contar_eventos("hoy")
+
+
+def test_se_cuentan_los_incidentes_por_tipo_y_rango(repo: Repositorio) -> None:
+    repo.guardar_incidente("caida_proceso", "2026-11-02T10:00:00", "el capturador terminó con código 3", "relanzado en 1 s")
+    repo.guardar_incidente("caida_proceso", "2026-11-03T10:00:00", "el capturador terminó con código 3", "relanzado en 1 s")
+    repo.guardar_incidente("evento_invalido", "2026-11-02T11:00:00", "tipo ausente o desconocido")
+
+    assert repo.contar_incidentes() == 3
+    assert repo.contar_incidentes("caida_proceso") == 2
+    assert repo.contar_incidentes("caida_proceso", "2026-11-02", "2026-11-03") == 1
+    assert repo.contar_incidentes(None, "2026-11-02", "2026-11-03") == 2
+    assert repo.contar_incidentes("error_envio") == 0
