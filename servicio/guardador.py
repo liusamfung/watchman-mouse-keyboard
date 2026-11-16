@@ -19,7 +19,7 @@ el hilo del capturador puede seguir agregando eventos durante un guardado.
 Se relaciona con: usa `comun/repositorio.py` (guarda en `evento`, `contador_diario`, `sesion`,
 `incidente`, `equipo`, `modelo_periferico` y `periferico`), `servicio/contador.py`, `servicio/sesion.py`,
 `servicio/validador.py` (`EventoValido`) y `servicio/gestor_subproceso.py` (`Incidente`) · lo usan el
-futuro `servicio/principal.py` (conectará `al_evento` y `al_incidente` con el gestor) y
+`servicio/principal.py` (conecta `al_evento` y `al_incidente` con el gestor) y
 `pruebas/test_guardador.py`.
 """
 import sqlite3

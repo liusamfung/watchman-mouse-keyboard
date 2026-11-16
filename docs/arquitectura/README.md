@@ -25,7 +25,7 @@ Todo se instala en **cada PC de trabajo**; no hay servidor central. Dos procesos
 ## Decisiones y por qué
 
 - **Raw Input y no `SetWindowsHookEx`.** Un gancho global no dice qué dispositivo generó la tecla; Raw Input sí entrega el identificador del dispositivo, necesario para contar el desgaste por periférico.
-- **Dos procesos que se comunican por SQLite.** Evita sockets o tuberías adicionales. La interfaz deja la orden de iniciar o detener en `configuracion` y el servicio la lee periódicamente. La base usa WAL para que ambos procesos convivan.
+- **Dos procesos que se comunican por SQLite.** Evita sockets o tuberías adicionales. La interfaz deja la orden de iniciar o detener en `configuracion` (`orden_captura`) y el servicio la lee cada 2 segundos (`servicio/control.py`). El servicio responde por el mismo camino: `estado_captura` dice si captura, está detenida o se cerró, y `latido_servicio` es la hora de su última lectura; si el latido es viejo, la interfaz entiende que el servicio no está en marcha. La base usa WAL para que ambos procesos convivan.
 - **Solo Python toca la base de datos.** El capturador es un proceso mínimo que solo produce JSON, lo que facilita probarlo y reemplazarlo.
 - **Inicio al iniciar sesión.** Un servicio que arranca con el equipo corre en la sesión 0, aislada, y no ve el teclado ni el mouse del usuario. Por eso se usa una tarea del Programador de tareas con disparador "al iniciar sesión".
 - **Contraseña en el Administrador de credenciales de Windows.** El servicio la lee con `keyring`; la interfaz la guarda o la cambia. Nunca está en el código, en el repositorio ni en la base.
